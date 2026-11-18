@@ -4,6 +4,7 @@
   "description": "App pessoal de \"ler depois\"",
   "type": "module",
   "scripts": {
+    "site": "node scripts/servidor.js",
     "extrair": "node scripts/extrair.js"
   },
   "engines": {
