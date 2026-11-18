@@ -1,0 +1,12 @@
+# dependências do Node
+node_modules/
+
+# saída local do extrator (texto de terceiros: NUNCA no repo público)
+amostra-dados/
+dados-locais/
+
+# sistema
+.DS_Store
+*.log
+.env
+.claude/settings.local.json

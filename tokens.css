@@ -1,0 +1,183 @@
+/* ==========================================================================
+   artigos — tokens visuais
+   --------------------------------------------------------------------------
+   Camada 1 (moldura): copiada de meus-bookmarks/docs/style.css, que por sua
+   vez deriva do reader/style.css. Mesmos nomes de variáveis. Se mudar uma
+   cor lá, mude aqui também (não há fonte única — decisão 9).
+     --raised e --accent-soft vêm do reader/style.css.
+   Camada 2 (leitura): novos, prefixo --read-. Preferências do usuário.
+   Highlights: novos, prefixo --hl-. Tons pastel estilo Kindle colorido.
+
+   Tema: igual ao meus-bookmarks — segue o sistema; o toggle grava
+   localStorage "artigos:theme" = "light" | "dark" e põe data-theme no <html>.
+   ========================================================================== */
+
+/* ===== Camada 1: moldura — tema claro ===== */
+
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #f5f7f9;
+  --raised: #ffffff;
+  --fg: #0f1419;
+  --muted: #536471;
+  --border: #e1e6ea;
+  --accent: #1d7af2;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(29, 122, 242, 0.1);
+  --danger: #d7263d;
+  --star: #d99a00;
+  --icon: #7ea6dc;
+  --tag-fg: #536471;
+  --tag-fg-active: #1d7af2;
+  --shadow: 0 10px 30px rgba(15, 20, 25, 0.15);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2.5rem;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-modal: 14px;
+  --sidebar-w: 220px;
+  --content-max: 720px;
+  --layout-max: 1200px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Highlights — claro: fundo translúcido, funciona sobre branco, sépia e cinza */
+  --hl-amarelo: rgb(255 214 90 / 0.45);
+  --hl-laranja: rgb(255 172 100 / 0.42);
+  --hl-azul: rgb(140 192 255 / 0.42);
+  --hl-rosa: rgb(255 150 190 / 0.4);
+  --hl-line-width: 0px;
+  /* cor cheia, para bolinhas de cor na interface e sublinhado no escuro */
+  --hl-amarelo-dot: #f2c230;
+  --hl-laranja-dot: #f59a4c;
+  --hl-azul-dot: #6aa8f0;
+  --hl-rosa-dot: #ee7aa8;
+}
+
+/* ===== Camada 1: moldura — tema escuro ===== */
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #151b23;
+    --surface: #1b232d;
+    --raised: #202a35;
+    --fg: #e6edf3;
+    --muted: #8b98a5;
+    --border: #232c37;
+    --accent: #3b93ff;
+    --accent-fg: #ffffff;
+    --accent-soft: rgba(59, 147, 255, 0.14);
+    --danger: #f4626e;
+    --star: #f5b301;
+    --icon: #9dbde8;
+    --tag-fg: #8b98a5;
+    --tag-fg-active: #3b93ff;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+    --hl-amarelo: rgb(255 214 90 / 0.2);
+    --hl-laranja: rgb(255 172 100 / 0.2);
+    --hl-azul: rgb(140 192 255 / 0.2);
+    --hl-rosa: rgb(255 150 190 / 0.2);
+    --hl-line-width: 2px;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #151b23;
+  --surface: #1b232d;
+  --raised: #202a35;
+  --fg: #e6edf3;
+  --muted: #8b98a5;
+  --border: #232c37;
+  --accent: #3b93ff;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(59, 147, 255, 0.14);
+  --danger: #f4626e;
+  --star: #f5b301;
+  --icon: #9dbde8;
+  --tag-fg: #8b98a5;
+  --tag-fg-active: #3b93ff;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+  --hl-amarelo: rgb(255 214 90 / 0.2);
+  --hl-laranja: rgb(255 172 100 / 0.2);
+  --hl-azul: rgb(140 192 255 / 0.2);
+  --hl-rosa: rgb(255 150 190 / 0.2);
+  --hl-line-width: 2px;
+}
+
+/* ===== Camada 2: área de leitura =====
+   O app põe data-fundo e data-fonte no elemento .leitura e ajusta
+   --read-size / --read-leading / --read-width pelas preferências
+   (localStorage "artigos:leitura"). "auto" segue o tema da moldura. */
+
+.leitura {
+  --read-size: 20px;
+  --read-leading: 1.6;
+  --read-width: 38rem;
+  --read-font: "Literata", Georgia, serif;
+  --read-bg: var(--bg);
+  --read-fg: var(--fg);
+  --read-muted: var(--muted);
+}
+
+.leitura[data-fundo="claro"] {
+  --read-bg: #ffffff;
+  --read-fg: #0f1419;
+  --read-muted: #536471;
+}
+
+.leitura[data-fundo="sepia"] {
+  --read-bg: #f4ecdc;
+  --read-fg: #3a3128;
+  --read-muted: #7a6a58;
+}
+
+.leitura[data-fundo="cinza"] {
+  /* fundo claro do reader */
+  --read-bg: #e9edf1;
+  --read-fg: #0f1419;
+  --read-muted: #536471;
+}
+
+.leitura[data-fundo="escuro"] {
+  /* cor das colunas do reader no escuro; texto levemente atenuado */
+  --read-bg: #151b23;
+  --read-fg: #d5dde5;
+  --read-muted: #8b98a5;
+}
+
+/* fundos claros escolhidos com a moldura no escuro: highlight volta ao modo claro */
+.leitura[data-fundo="claro"],
+.leitura[data-fundo="sepia"],
+.leitura[data-fundo="cinza"] {
+  --hl-amarelo: rgb(255 214 90 / 0.45);
+  --hl-laranja: rgb(255 172 100 / 0.42);
+  --hl-azul: rgb(140 192 255 / 0.42);
+  --hl-rosa: rgb(255 150 190 / 0.4);
+  --hl-line-width: 0px;
+}
+
+.leitura[data-fundo="escuro"] {
+  --hl-amarelo: rgb(255 214 90 / 0.2);
+  --hl-laranja: rgb(255 172 100 / 0.2);
+  --hl-azul: rgb(140 192 255 / 0.2);
+  --hl-rosa: rgb(255 150 190 / 0.2);
+  --hl-line-width: 2px;
+}
+
+.leitura[data-fonte="literata"]   { --read-font: "Literata", Georgia, serif; }
+.leitura[data-fonte="source-serif"] { --read-font: "Source Serif 4", Georgia, serif; }
+.leitura[data-fonte="georgia"]    { --read-font: Georgia, "Times New Roman", serif; }
+.leitura[data-fonte="inter"]      { --read-font: "Inter", var(--font-sans); }
+.leitura[data-fonte="atkinson"]   { --read-font: "Atkinson Hyperlegible", var(--font-sans); }
+.leitura[data-fonte="sistema"]    { --read-font: var(--font-sans); }
