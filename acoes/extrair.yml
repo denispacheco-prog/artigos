@@ -1,0 +1,83 @@
+# Workflow do repositório PRIVADO artigos-dados.
+# Cópia oficial: artigos/acoes/extrair.yml  →  instalado em
+# artigos-dados/.github/workflows/extrair.yml
+#
+# O app dispara este workflow (workflow_dispatch) com a URL e o id do artigo.
+# Ele baixa o código do extrator do repo público artigos, extrai, grava
+# articles/<id>.json + media/<id>/ e refaz search/texto.json.
+# Não mexe no index.json: esse arquivo é do app (DECISOES.md).
+# Só ações oficiais actions/* (regra herdada do reader).
+
+name: Extrair artigo
+run-name: "Extrair ${{ inputs.id }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL do artigo"
+        required: true
+        type: string
+      id:
+        description: "Identificador (AAAAMMDD-xxxxxx, gerado pelo app)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  extrair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Repositório de dados
+        uses: actions/checkout@v4
+        with:
+          path: dados
+
+      - name: Código do extrator (repo público artigos)
+        uses: actions/checkout@v4
+        with:
+          repository: denispacheco-prog/artigos
+          path: codigo
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: codigo/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: codigo
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Extrair
+        working-directory: codigo
+        env:
+          URL: ${{ inputs.url }}
+          ID: ${{ inputs.id }}
+        run: node scripts/extrair.js "$URL" --id "$ID" --saida ../dados --apenas-artigo
+
+      # Se outra extração gravou ao mesmo tempo, junta o trabalho dela,
+      # refaz o índice de busca e tenta de novo.
+      - name: Gravar no repositório
+        working-directory: dados
+        env:
+          ID: ${{ inputs.id }}
+        run: |
+          git config user.name "artigos-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add articles media
+          git commit -m "Extrai $ID"
+          for tentativa in 1 2 3 4 5; do
+            git pull --rebase -X theirs origin main
+            node ../codigo/scripts/indexar.js --saida .
+            git add search
+            git commit -m "Atualiza índice de busca ($ID)" || true
+            if git push origin HEAD:main; then exit 0; fi
+            sleep $((tentativa * 4))
+          done
+          echo "Não foi possível gravar depois de 5 tentativas." >&2
+          exit 1

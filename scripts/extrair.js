@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Extrator de artigos (Node). Uso:
 //   npm run extrair -- <url> [<url> ...] [--saida pasta]
+// Modo Action (repo privado): grava só articles/<id>.json e media/<id>/;
+// o index.json é do app e o índice de busca é refeito no próprio workflow.
+//   node scripts/extrair.js <url> --id <id> --saida ../dados --apenas-artigo
 // Grava no formato do schema (DECISOES.md) em amostra-dados/ por padrão:
 //   index.json, articles/<id>.json, media/<id>/N.webp, previa/<id>.html
 
@@ -15,6 +18,7 @@ import { normalizarUrl } from '../lib/url.js';
 import { sanitizar } from '../lib/sanitizar.js';
 import { extrairArtigo, textoNormalizado, PISTAS_PAYWALL } from '../lib/extrair-nucleo.js';
 import { gerarIndiceBusca } from './indexar.js';
+import { entradaDoArtigo, ID_VALIDO } from '../lib/indice.js';
 
 const FERRAMENTA = 'readability@0.6.0';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36';
@@ -170,11 +174,11 @@ function removerImg(el) {
 
 // ---------------------------------------------------------------- extração
 
-async function extrair(urlBruta, saida, index) {
+async function extrair(urlBruta, saida, index, { idForcado = null, metodo = 'local' } = {}) {
   const url = normalizarUrl(urlBruta);
   const agora = new Date();
-  const existente = index.articles.find((a) => a.url === url);
-  const id = existente?.id || novoId(url, agora);
+  const existente = index?.articles.find((a) => a.url === url);
+  const id = idForcado || existente?.id || novoId(url, agora);
   const avisos = [];
   const base = {
     schema: 1,
@@ -194,7 +198,7 @@ async function extrair(urlBruta, saida, index) {
     contentHtml: '',
     textHash: null,
     images: [],
-    extraction: { method: 'action', status: 'failed', tool: FERRAMENTA, at: agora.toISOString(), warnings: avisos, error: null },
+    extraction: { method: metodo, status: 'failed', tool: FERRAMENTA, at: agora.toISOString(), warnings: avisos, error: null },
     edits: [],
   };
 
@@ -259,8 +263,10 @@ async function extrair(urlBruta, saida, index) {
 
   await mkdir(path.join(saida, 'articles'), { recursive: true });
   await writeFile(path.join(saida, 'articles', `${id}.json`), JSON.stringify(artigo, null, 2));
-  atualizarIndex(index, artigo, existente);
-  await escreverPrevia(saida, artigo);
+  if (index) {
+    atualizarIndex(index, artigo, existente);
+    await escreverPrevia(saida, artigo);
+  }
   return artigo;
 }
 
@@ -273,30 +279,7 @@ function hostname(url) {
 }
 
 function atualizarIndex(index, a, existente) {
-  const entrada = {
-    id: a.id,
-    url: a.url,
-    title: a.title,
-    siteName: a.siteName,
-    byline: a.byline,
-    publishedAt: a.publishedAt,
-    savedAt: a.savedAt,
-    excerpt: a.excerpt,
-    leadImage: a.leadImage?.src || null,
-    wordCount: a.wordCount,
-    readingMinutes: a.readingMinutes,
-    lang: a.lang,
-    readAt: existente?.readAt ?? null,
-    archivedAt: existente?.archivedAt ?? null,
-    favorite: existente?.favorite ?? false,
-    tags: existente?.tags ?? [],
-    progress: existente?.progress ?? 0,
-    extraction: a.extraction.status,
-    highlightCount: existente?.highlightCount ?? 0,
-    hasNote: existente?.hasNote ?? false,
-    annotationsFile: `annotations/${a.savedAt.slice(0, 7)}.json`,
-    updatedAt: new Date().toISOString(),
-  };
+  const entrada = entradaDoArtigo(a, existente);
   const i = index.articles.findIndex((x) => x.id === a.id);
   if (i >= 0) index.articles[i] = entrada;
   else index.articles.unshift(entrada);
@@ -361,10 +344,25 @@ a{color:var(--accent)}`,
 async function main() {
   const args = process.argv.slice(2);
   let saida = 'amostra-dados';
+  let idForcado = null;
+  let apenasArtigo = false;
   const urls = [];
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--saida') saida = args[++i];
+    else if (args[i] === '--id') idForcado = args[++i];
+    else if (args[i] === '--apenas-artigo') apenasArtigo = true;
     else urls.push(args[i]);
+  }
+  if (idForcado && (!ID_VALIDO.test(idForcado) || urls.length !== 1)) {
+    console.error('--id precisa ter o formato AAAAMMDD-xxxxxx e vir com uma única URL.');
+    process.exit(1);
+  }
+
+  if (apenasArtigo) {
+    const a = await extrair(urls[0], saida, null, { idForcado, metodo: 'action' });
+    console.log(`${ROTULO[a.extraction.status]} · ${a.id} · ${a.siteName} · ${a.wordCount} palavras`);
+    for (const w of [a.extraction.error, ...a.extraction.warnings].filter(Boolean)) console.log(`  ! ${w}`);
+    return; // falha de extração não é erro do workflow: o app mostra o motivo
   }
   if (!urls.length) {
     console.log('Uso: npm run extrair -- <url> [<url> ...] [--saida pasta]');
@@ -376,7 +374,7 @@ async function main() {
 
   for (const u of urls) {
     process.stdout.write(`→ ${u.slice(0, 90)}\n`);
-    const a = await extrair(u, saida, index);
+    const a = await extrair(u, saida, index, { idForcado });
     const imgs = a.images.filter((i) => !i.hotlink).length;
     console.log(`  ${ROTULO[a.extraction.status]} · ${a.siteName} · "${(a.title || '').slice(0, 60)}" · ${a.wordCount} palavras · ${a.readingMinutes} min · ${imgs} imagens`);
     for (const w of [a.extraction.error, ...a.extraction.warnings].filter(Boolean)) console.log(`    ! ${w}`);

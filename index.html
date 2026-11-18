@@ -38,6 +38,8 @@
               <button id="btn-exportar" type="button">Exportar backup</button>
               <button id="btn-importar" type="button">Importar backup</button>
               <input id="arquivo-importar" type="file" accept="application/json,.json" hidden />
+              <hr class="so-github" />
+              <button id="btn-token" type="button" class="so-github">Token do GitHub</button>
             </div>
           </details>
         </div>
@@ -101,9 +103,36 @@
       <h2>Salvar artigo</h2>
       <button type="button" class="icon-btn js-fechar" aria-label="Fechar">✕</button>
     </div>
-    <p>No modo local (M2), os artigos entram pelo terminal do VS Code:</p>
-    <pre>npm run extrair -- "https://endereço-do-artigo"</pre>
-    <p class="dica">Depois, recarregue esta página. Salvar colando a URL aqui chega no M4.</p>
+    <form id="form-salvar" class="form-dialogo" novalidate>
+      <label for="url-salvar">Endereço do artigo</label>
+      <div class="linha-campo">
+        <input id="url-salvar" type="url" inputmode="url" placeholder="https://…" autocomplete="off" spellcheck="false" />
+        <button type="submit" class="btn-primario">Salvar</button>
+      </div>
+      <p id="status-salvar" class="dica" aria-live="polite">O artigo aparece na lista na hora e fica pronto em 1 a 2 minutos.</p>
+    </form>
+    <div id="salvar-local" hidden>
+      <p>No modo local, os artigos entram pelo terminal do VS Code:</p>
+      <pre>npm run extrair -- "https://endereço-do-artigo"</pre>
+      <p class="dica">Depois, recarregue esta página.</p>
+    </div>
+  </dialog>
+
+  <dialog id="dialogo-token" class="dialogo">
+    <div class="dialogo-cabecalho">
+      <h2>Token do GitHub</h2>
+      <button type="button" class="icon-btn js-fechar" aria-label="Fechar">✕</button>
+    </div>
+    <p>Seus artigos ficam no repositório privado <strong>artigos-dados</strong>. Para ler e gravar lá, este navegador precisa de um token do GitHub com acesso só a esse repositório.</p>
+    <form id="form-token" class="form-dialogo" novalidate>
+      <label for="campo-token">Token</label>
+      <div class="linha-campo">
+        <input id="campo-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" />
+        <button type="submit" class="btn-primario">Salvar e testar</button>
+      </div>
+      <p id="status-token" class="dica" aria-live="polite"></p>
+    </form>
+    <p class="dica">O token fica guardado só neste navegador e é enviado apenas para api.github.com. <button id="btn-remover-token" type="button" class="link-btn">Remover deste navegador</button></p>
   </dialog>
 
   <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>

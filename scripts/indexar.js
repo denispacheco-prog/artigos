@@ -11,9 +11,11 @@ import MiniSearch from 'minisearch';
 import { JSDOM } from 'jsdom';
 import { OPCOES_TEXTO, VERSAO_INDICE } from '../lib/busca.js';
 
+let documento = null;
+
 function textoDoHtml(html) {
-  const { document } = new JSDOM('').window;
-  const div = document.createElement('div');
+  documento ||= new JSDOM('').window.document;
+  const div = documento.createElement('div');
   div.innerHTML = html || '';
   // separa blocos para palavras de parágrafos vizinhos não grudarem
   for (const bloco of div.querySelectorAll('p, li, h2, h3, h4, h5, h6, blockquote, figcaption, td, th, br')) bloco.append(' ');

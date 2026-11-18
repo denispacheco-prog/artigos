@@ -5,12 +5,20 @@ import DOMPurify from '../vendor/purify-3.4.18.es.mjs';
 import { sanitizar } from '../lib/sanitizar.js';
 import { termosDaConsulta } from '../lib/busca.js';
 import * as dados from './dados.js';
+import * as github from './github.js';
 import * as anotacoes from './anotacoes.js';
 import * as busca from './busca.js';
 import { desenharVistaHighlights } from './vista-highlights.js';
 import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural } from './util.js';
 
-dados.aoErrar((e) => avisar(e.message));
+dados.aoErrar((e) => {
+  avisar(e.message);
+  if (e.status === 401) abrirToken();
+});
+dados.aoMudar(() => {
+  busca.reiniciar();
+  if (!$('#vista-lista').hidden) desenharLista();
+});
 
 // ======================================================================
 // tema (modelo do meus-bookmarks; chave artigos:theme)
@@ -213,7 +221,12 @@ async function desenharBusca(minha) {
 function itemDaLista(a, { consulta = null, trecho = null } = {}) {
   const lido = !!a.readAt;
   const link = `#/ler/${a.id}${consulta ? `?q=${consulta}` : ''}`;
-  const thumb = a.leadImage ? el('img', { class: 'item-thumb', src: dados.urlMidia(a.leadImage), alt: '', loading: 'lazy', decoding: 'async' }) : null;
+  let thumb = null;
+  if (a.leadImage) {
+    thumb = el('img', { class: 'item-thumb', alt: '', loading: 'lazy', decoding: 'async' });
+    dados.aplicarMidia(thumb, a.leadImage);
+  }
+  if (a.extraction === 'pending' || a.extraction === 'failed') return itemProvisorio(a);
   const status =
     a.extraction === 'partial' ? el('span', { class: 'selo selo-parcial', title: 'Extração possivelmente incompleta', text: 'parcial' }) : a.extraction === 'failed' ? el('span', { class: 'selo selo-falha', title: 'A extração falhou', text: 'falhou' }) : null;
   const resumo = el('p', { class: 'item-resumo', text: a.excerpt || '' });
@@ -297,22 +310,166 @@ function botaoArquivar(a, classe) {
   return b;
 }
 
+/** Item de artigo ainda sem texto: extraindo… ou falhou. */
+function itemProvisorio(a) {
+  const pendente = a.extraction === 'pending';
+  let host = a.siteName || '';
+  return el(
+    'li',
+    { class: 'item item-provisorio', 'data-id': a.id },
+    el(
+      'div',
+      { class: 'item-texto' },
+      el(
+        'div',
+        { class: 'item-fonte' },
+        el('span', { class: 'favicon', 'aria-hidden': 'true', text: (host || '?').charAt(0).toUpperCase() }),
+        el('span', { class: 'item-site', text: host }),
+        el('span', { class: 'item-sep', text: dataCurta(a.savedAt) }),
+        pendente ? el('span', { class: 'selo selo-extraindo', text: 'extraindo…' }) : el('span', { class: 'selo selo-falha', text: 'falhou' }),
+      ),
+      el('h3', { class: 'item-titulo' }, a.title && !pendente ? el('a', { href: `#/ler/${a.id}` }, a.title) : el('span', { class: 'item-url', text: a.url })),
+      !pendente && a.extractionError ? el('p', { class: 'item-erro', text: a.extractionError }) : null,
+      pendente
+        ? el('p', { class: 'item-resumo', text: 'Baixando e limpando o artigo no GitHub. Fica pronto em 1 a 2 minutos.' })
+        : el(
+            'div',
+            { class: 'item-meta' },
+            botaoTentarDeNovo(a),
+            el('a', { class: 'btn-secundario btn-pequeno', href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir o original ↗' }),
+            el('button', { type: 'button', class: 'link-btn', onclick: () => $('#btn-bookmarklet-ajuda')?.click(), text: 'Usar o bookmarklet' }),
+          ),
+    ),
+  );
+}
+
+function botaoTentarDeNovo(a) {
+  return el(
+    'button',
+    {
+      type: 'button',
+      class: 'btn-secundario btn-pequeno',
+      onclick: async () => {
+        try {
+          await dados.tentarDeNovo(a.id);
+          avisar('Extração pedida de novo.');
+          if (!$('#vista-leitura').hidden) location.hash = '#/';
+          else desenharLista();
+        } catch (e) {
+          avisar(e.message);
+        }
+      },
+    },
+    'Tentar de novo',
+  );
+}
+
+const menu = $('.header-menu');
+
+// ---------------------------------------------------------------- salvar por URL
+
+const dialogoSalvar = $('#dialogo-salvar');
+$('#form-salvar').hidden = dados.modo === 'local';
+$('#salvar-local').hidden = dados.modo !== 'local';
+
+function abrirSalvar(urlInicial = '') {
+  $('#url-salvar').value = urlInicial;
+  $('#status-salvar').textContent = 'O artigo aparece na lista na hora e fica pronto em 1 a 2 minutos.';
+  dialogoSalvar.showModal();
+  $('#url-salvar').focus();
+}
+
+$('#btn-salvar').addEventListener('click', () => abrirSalvar());
+
+$('#form-salvar').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const campo = $('#url-salvar');
+  const status = $('#status-salvar');
+  const botao = e.target.querySelector('button[type="submit"]');
+  if (!campo.value.trim()) return campo.focus();
+  botao.disabled = true;
+  status.textContent = 'Salvando…';
+  try {
+    const { entrada, jaExistia } = await dados.salvarUrl(campo.value);
+    dialogoSalvar.close();
+    if (jaExistia) {
+      avisar('Esse artigo já estava salvo.');
+      location.hash = `#/ler/${entrada.id}`;
+    } else {
+      avisar('Salvo. Extraindo o artigo…');
+      if (estado.filtro !== 'ler') estado.filtro = 'ler';
+      location.hash = '#/';
+      desenharLista();
+    }
+  } catch (err) {
+    status.textContent = err.message;
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------- token
+
+const dialogoToken = $('#dialogo-token');
+for (const el2 of document.querySelectorAll('.so-github')) el2.hidden = dados.modo !== 'github';
+
+function abrirToken() {
+  if (dados.modo !== 'github') return;
+  $('#campo-token').value = '';
+  $('#status-token').textContent = github.lerToken() ? 'Já existe um token neste navegador. Cole outro para trocar.' : '';
+  if (!dialogoToken.open) dialogoToken.showModal();
+  $('#campo-token').focus();
+}
+
+$('#btn-token').addEventListener('click', () => {
+  menu.open = false;
+  abrirToken();
+});
+
+$('#form-token').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const token = $('#campo-token').value.trim();
+  const status = $('#status-token');
+  if (!token) return;
+  const anterior = github.lerToken();
+  github.gravarToken(token);
+  status.textContent = 'Testando…';
+  try {
+    await github.verificarAcesso();
+    status.textContent = 'Funcionou.';
+    $('#campo-token').value = '';
+    dialogoToken.close();
+    avisar('Token salvo neste navegador.');
+    await iniciarDados();
+  } catch (err) {
+    github.gravarToken(anterior); // volta ao anterior se o novo não funciona
+    status.textContent = err.message;
+  }
+});
+
+$('#btn-remover-token').addEventListener('click', () => {
+  if (!confirm('Remover o token deste navegador? Você vai precisar colá-lo de novo para ver seus artigos aqui.')) return;
+  github.gravarToken('');
+  dialogoToken.close();
+  location.reload();
+});
+
+for (const d of [dialogoSalvar, dialogoToken]) {
+  d.querySelector('.js-fechar').addEventListener('click', () => d.close());
+  d.addEventListener('click', (e) => {
+    if (e.target === d) d.close();
+  });
+}
+
 const buscarDepois = debounce(() => desenharLista(), 200);
 $('#busca').addEventListener('input', (e) => {
   estado.busca = e.target.value;
   buscarDepois();
 });
 
-const dialogoSalvar = $('#dialogo-salvar');
-$('#btn-salvar').addEventListener('click', () => dialogoSalvar.showModal());
-dialogoSalvar.querySelector('.js-fechar').addEventListener('click', () => dialogoSalvar.close());
-dialogoSalvar.addEventListener('click', (e) => {
-  if (e.target === dialogoSalvar) dialogoSalvar.close();
-});
 
 // ---------------------------------------------------------------- backup
 
-const menu = $('.header-menu');
 document.addEventListener('click', (e) => {
   if (menu.open && !e.composedPath().includes(menu)) menu.open = false;
 });
@@ -347,7 +504,7 @@ $('#arquivo-importar').addEventListener('change', async (e) => {
     const b = JSON.parse(await arquivo.text());
     const n = b.articles?.length ?? 0;
     if (!confirm(`Importar ${plural(n, 'artigo', 'artigos')} deste backup?\n\nArtigos, notas e highlights com o mesmo identificador serão substituídos pelos do backup. O resto fica como está.`)) return;
-    const r = await dados.importarBackup(b);
+    const r = await dados.importarBackup(b, (i, total) => avisar(`Importando ${i} de ${total}…`));
     busca.reiniciar();
     avisar(`Importado: ${plural(r.artigos, 'artigo', 'artigos')}.`);
     desenharLista();
@@ -562,19 +719,28 @@ async function abrirArtigo(id, { consulta = null, hl = null } = {}) {
   const avisos = [completo.extraction?.error, ...(completo.extraction?.warnings || [])].filter(Boolean);
   const caixaAvisos =
     completo.extraction?.status !== 'ok' && avisos.length
-      ? el('div', { class: 'artigo-aviso' }, el('strong', { text: completo.extraction.status === 'failed' ? 'A extração falhou.' : 'Este texto pode estar incompleto.' }), ' ', avisos[0], ' ', el('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir o original ↗' }))
+      ? el(
+          'div',
+          { class: 'artigo-aviso' },
+          el('strong', { text: completo.extraction.status === 'failed' ? 'A extração falhou.' : 'Este texto pode estar incompleto.' }),
+          ' ',
+          avisos[0],
+          el('span', { class: 'artigo-aviso-acoes' }, el('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir o original ↗' }), dados.modo === 'github' ? botaoTentarDeNovo(a) : null),
+        )
       : null;
 
   const lead =
-    completo.leadImage && !completo.leadImage.inBody ? el('figure', { class: 'artigo-lead' }, el('img', { src: dados.urlMidia(completo.leadImage.src), alt: '', decoding: 'async' })) : null;
+    completo.leadImage && !completo.leadImage.inBody ? el('figure', { class: 'artigo-lead' }, el('img', { alt: '', decoding: 'async' })) : null;
+  if (lead) dados.aplicarMidia(lead.querySelector('img'), completo.leadImage.src);
 
   // limpeza de novo na exibição (decisão 8) + ajustes de links e imagens
   const corpo = el('div', { class: 'artigo-corpo' });
   corpo.innerHTML = sanitizar(DOMPurify, completo.contentHtml || '');
   for (const img of corpo.querySelectorAll('img')) {
-    img.src = dados.urlMidia(img.getAttribute('src'));
-    img.loading = 'lazy';
+    const src = img.getAttribute('src');
+    img.removeAttribute('src');
     img.decoding = 'async';
+    dados.aplicarMidia(img, src);
   }
   for (const link of corpo.querySelectorAll('a[href]')) {
     link.target = '_blank';
@@ -697,10 +863,25 @@ addEventListener('beforeunload', (e) => {
 // início
 // ======================================================================
 
-desenharBotoesTema();
-try {
-  await dados.carregarIndice();
-} catch (e) {
-  avisar(e.message);
+async function iniciarDados() {
+  $('#lista').replaceChildren(el('li', { class: 'vazio', text: 'carregando…' }));
+  try {
+    await dados.carregarIndice();
+    rotear();
+  } catch (e) {
+    const semToken = e instanceof dados.SemToken || e.status === 401;
+    $('#contagem').textContent = '';
+    $('#lista').replaceChildren(
+      el(
+        'li',
+        { class: 'boas-vindas' },
+        el('p', { text: semToken ? 'Para ver seus artigos neste navegador, configure o token do GitHub.' : e.message }),
+        semToken ? el('button', { type: 'button', class: 'btn-primario', onclick: abrirToken, text: 'Configurar token' }) : el('button', { type: 'button', class: 'btn-secundario', onclick: iniciarDados, text: 'Tentar de novo' }),
+      ),
+    );
+    if (semToken) abrirToken();
+  }
 }
-rotear();
+
+desenharBotoesTema();
+await iniciarDados();
