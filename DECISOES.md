@@ -36,7 +36,9 @@ Aprovadas em 18/11/2026.
      mês em que o artigo foi salvo. Só o app escreve.
    - `media/<id>/N.webp` — imagens.
    - `search/texto.json` — índice MiniSearch do texto. Só a Action escreve.
-4. **Imagens:** baixadas e comprimidas (webp, ≤1200px, ≤8 por artigo),
+   - Tempo de leitura (`readingMinutes`, no artigo e no índice): 220
+     palavras/min + 6 s por imagem, arredondado para cima, mínimo 1.
+4. **Imagens:** baixadas e comprimidas (webp, ≤1200px, ≤30 ou 3 MB por artigo),
    guardando `originalSrc`.
 5. **Highlights:** W3C TextQuoteSelector (exato + 32 antes + 32 depois) +
    TextPositionSelector; sem âncora → "órfão", nunca apagado.
@@ -51,9 +53,10 @@ Aprovadas em 18/11/2026.
 ## Etapas
 
 - **E0** — Node 22, repos `artigos` (público) e `artigos-dados` (privado),
-  primeiro commit. ← atual
-- **M1** — extrator local sobre 5 URLs de teste → `amostra-dados/`.
-- **M2** — lista + leitura + preferências, local, com a moldura visual.
+  primeiro commit. ✓
+- **M1** — extrator local sobre 5 URLs de teste → `amostra-dados/`. ✓
+  Imagens: até 30 ou 3 MB por artigo (o limite de 8 cortava ensaios).
+- **M2** — lista + leitura + preferências, local, com a moldura visual. ← atual
 - **M3** — highlights, notas, tags, estados, busca, backup.
 - **M4** — Action, repo privado, token, Pages, bookmarklet, edição manual.
 - **M5** — integração com reader e meus-bookmarks.
