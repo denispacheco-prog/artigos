@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https: data: blob:; font-src 'self'; connect-src 'self' https://api.github.com; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Salvar no Artigos</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='none' stroke='%2386ade0' stroke-width='7' stroke-linejoin='round' stroke-linecap='round'><path d='M50 26C40 18 26 16 14 18v58c12-2 26 0 36 8 10-8 24-10 36-8V18c-12-2-26 0-36 8z'/><path d='M50 26v58'/></g></svg>" />
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="css/app.css" />
+  <link rel="stylesheet" href="css/receber.css" />
+  <script src="js/tema-inicial.js"></script>
+  <!-- Readability como script comum: define Readability e isProbablyReaderable -->
+  <script src="vendor/readability-0.6.0.js"></script>
+  <script src="vendor/readability-readerable-0.6.0.js"></script>
+</head>
+<body class="receber">
+  <header class="receber-cabecalho">
+    <svg class="wordmark-icon" viewBox="10 12 80 76" fill="none" stroke="currentColor" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M50 26C40 18 26 16 14 18v58c12-2 26 0 36 8 10-8 24-10 36-8V18c-12-2-26 0-36 8z"/><path d="M50 26v58"/></svg>
+    <strong>Salvar no Artigos</strong>
+  </header>
+  <main id="conteudo" class="receber-conteudo" aria-live="polite">
+    <p class="receber-status">Esperando a página…</p>
+  </main>
+  <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
+  <script type="module" src="js/receber.js"></script>
+</body>
+</html>

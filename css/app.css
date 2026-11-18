@@ -1942,3 +1942,34 @@ img.midia-carregando {
   min-height: 3rem;
   background: color-mix(in srgb, var(--read-fg, var(--fg)) 6%, transparent);
 }
+
+/* ===== Bookmarklet (4e) ===== */
+
+.passos {
+  margin: 0 0 var(--space-3);
+  padding-left: 1.3rem;
+  font-size: 0.9rem;
+  line-height: 1.8;
+}
+
+kbd {
+  padding: 0.05rem 0.35rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--bg);
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+}
+
+.bookmarklet {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.2rem 0.8rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: grab;
+}

@@ -10,13 +10,15 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import createDOMPurify from 'dompurify';
 import sharp from 'sharp';
 
 import { normalizarUrl } from '../lib/url.js';
 import { sanitizar } from '../lib/sanitizar.js';
-import { extrairArtigo, textoNormalizado, PISTAS_PAYWALL } from '../lib/extrair-nucleo.js';
+import { Readability, isProbablyReaderable } from '@mozilla/readability';
+import { extrairArtigo, textoNormalizado, avaliarExtracao, tempoDeLeitura } from '../lib/extrair-nucleo.js';
 import { gerarIndiceBusca } from './indexar.js';
 import { entradaDoArtigo, ID_VALIDO } from '../lib/indice.js';
 
@@ -27,20 +29,10 @@ const ORCAMENTO_BYTES = 3 * 1024 * 1024; // por artigo, depois de comprimir
 const LARGURA_MIN_PRINCIPAL = 500;
 const LARGURA_MAX = 1200;
 const LARGURA_MIN = 200;
-const MIN_PALAVRAS_OK = 300;
-const MIN_PALAVRAS_FALHA = 60;
-const PALAVRAS_POR_MINUTO = 220;
-const SEGUNDOS_POR_IMAGEM = 6;
 
 // ---------------------------------------------------------------- utilidades
 
 const sha1 = (x) => createHash('sha1').update(x).digest('hex');
-
-/** Tempo de leitura em minutos: 220 palavras/min + 6 s por imagem, mínimo 1. */
-function tempoDeLeitura(palavras, nImagens) {
-  if (!palavras) return 0;
-  return Math.max(1, Math.ceil(palavras / PALAVRAS_POR_MINUTO + (nImagens * SEGUNDOS_POR_IMAGEM) / 60));
-}
 
 function novoId(url, quando) {
   const d = quando.toISOString().slice(0, 10).replaceAll('-', '');
@@ -84,7 +76,7 @@ async function processarImagem(src, pagina) {
 }
 
 /** Processa as imagens do corpo (já sanitizado) e a imagem principal. */
-async function cuidarDasImagens(corpo, id, paginaUrl, imagemPrincipal, dirMedia, avisos) {
+export async function cuidarDasImagens(corpo, id, paginaUrl, imagemPrincipal, dirMedia, avisos) {
   await rm(dirMedia, { recursive: true, force: true });
   const imagens = [];
   const porHash = new Map();
@@ -213,7 +205,7 @@ async function extrair(urlBruta, saida, index, { idForcado = null, metodo = 'loc
 
     const vc = new VirtualConsole(); // silencia avisos de CSS/JS da página
     const dom = new JSDOM(html, { url: urlFinal, virtualConsole: vc });
-    const r = extrairArtigo(dom.window.document);
+    const r = extrairArtigo(dom.window.document, { Readability, isProbablyReaderable });
     avisos.push(...r.avisos);
     if (!r.ok) throw new Error(r.erro);
 
@@ -227,15 +219,9 @@ async function extrair(urlBruta, saida, index, { idForcado = null, metodo = 'loc
     const { imagens, principal } = await cuidarDasImagens(corpo, id, urlFinal, imgPrincipal, path.join(saida, 'media', id), avisos);
 
     const texto = textoNormalizado(corpo);
-    const palavras = texto ? texto.split(' ').length : 0;
-    let status = 'ok';
-    if (palavras < MIN_PALAVRAS_FALHA) {
-      status = 'failed';
-      base.extraction.error = `Só ${palavras} palavras extraídas: provável bloqueio ou paywall. Use o bookmarklet.`;
-    } else if (palavras < MIN_PALAVRAS_OK || (palavras < 600 && PISTAS_PAYWALL.test(texto.slice(-400)))) {
-      status = 'partial';
-      avisos.push(`Texto curto (${palavras} palavras): pode estar incompleto (paywall?). Confira com o original.`);
-    }
+    const { palavras, status, erro, aviso } = avaliarExtracao(texto);
+    if (erro) base.extraction.error = erro;
+    if (aviso) avisos.push(aviso);
 
     artigo = {
       ...base,
@@ -387,7 +373,9 @@ async function main() {
   console.log(`\nPrévia: ${path.resolve(saida, 'previa', 'index.html')}`);
 }
 
-main().catch((e) => {
-  console.error('Erro inesperado:', e);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((e) => {
+    console.error('Erro inesperado:', e);
+    process.exit(1);
+  });
+}

@@ -3,13 +3,15 @@
 # artigos-dados/.github/workflows/extrair.yml
 #
 # O app dispara este workflow (workflow_dispatch) com a URL e o id do artigo.
+# modo "extrair" (padrão): baixa a página e extrai.
+# modo "imagens": o artigo já existe (veio do bookmarklet); só baixa as imagens.
 # Ele baixa o código do extrator do repo público artigos, extrai, grava
 # articles/<id>.json + media/<id>/ e refaz search/texto.json.
 # Não mexe no index.json: esse arquivo é do app (DECISOES.md).
 # Só ações oficiais actions/* (regra herdada do reader).
 
 name: Extrair artigo
-run-name: "Extrair ${{ inputs.id }}"
+run-name: "${{ inputs.modo == 'imagens' && 'Imagens' || 'Extrair' }} ${{ inputs.id }}"
 
 on:
   workflow_dispatch:
@@ -22,6 +24,12 @@ on:
         description: "Identificador (AAAAMMDD-xxxxxx, gerado pelo app)"
         required: true
         type: string
+      modo:
+        description: "extrair (padrão) ou imagens"
+        required: false
+        default: extrair
+        type: choice
+        options: [extrair, imagens]
 
 permissions:
   contents: write
@@ -54,11 +62,19 @@ jobs:
         run: npm ci --omit=dev --no-audit --no-fund
 
       - name: Extrair
+        if: inputs.modo != 'imagens'
         working-directory: codigo
         env:
           URL: ${{ inputs.url }}
           ID: ${{ inputs.id }}
         run: node scripts/extrair.js "$URL" --id "$ID" --saida ../dados --apenas-artigo
+
+      - name: Baixar imagens (artigo salvo pelo bookmarklet)
+        if: inputs.modo == 'imagens'
+        working-directory: codigo
+        env:
+          ID: ${{ inputs.id }}
+        run: node scripts/localizar-imagens.js --id "$ID" --saida ../dados
 
       # Se outra extração gravou ao mesmo tempo, junta o trabalho dela,
       # refaz o índice de busca e tenta de novo.
@@ -66,11 +82,12 @@ jobs:
         working-directory: dados
         env:
           ID: ${{ inputs.id }}
+          MODO: ${{ inputs.modo }}
         run: |
           git config user.name "artigos-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add articles media
-          git commit -m "Extrai $ID"
+          if [ "$MODO" = "imagens" ]; then git commit -m "Imagens de $ID"; else git commit -m "Extrai $ID"; fi
           for tentativa in 1 2 3 4 5; do
             git pull --rebase -X theirs origin main
             node ../codigo/scripts/indexar.js --saida .

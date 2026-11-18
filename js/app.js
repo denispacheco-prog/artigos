@@ -9,7 +9,7 @@ import * as github from './github.js';
 import * as anotacoes from './anotacoes.js';
 import * as busca from './busca.js';
 import { desenharVistaHighlights } from './vista-highlights.js';
-import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural } from './util.js';
+import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural, copiar } from './util.js';
 
 dados.aoErrar((e) => {
   avisar(e.message);
@@ -454,7 +454,35 @@ $('#btn-remover-token').addEventListener('click', () => {
   location.reload();
 });
 
-for (const d of [dialogoSalvar, dialogoToken]) {
+// ---------------------------------------------------------------- bookmarklet
+
+const dialogoBookmarklet = $('#dialogo-bookmarklet');
+
+/** Código do bookmarklet: abre receber.html e entrega o HTML da página atual. */
+function codigoBookmarklet() {
+  const destino = new URL('receber.html', location.href.split('#')[0]).href;
+  const origem = new URL(destino).origin;
+  const js =
+    `(()=>{const O=${JSON.stringify(origem)},w=open(${JSON.stringify(destino)},'artigos_receber','width=560,height=720');` +
+    `if(!w){alert('O navegador bloqueou a janela do Artigos. Permita pop-ups neste site e tente de novo.');return}` +
+    `const d={tipo:'artigos-pagina',url:location.href,html:document.documentElement.outerHTML};let n=0;` +
+    `const t=setInterval(()=>{if(++n>50)return clearInterval(t);try{w.postMessage(d,O)}catch(e){}},300);` +
+    `addEventListener('message',e=>{if(e.origin===O&&e.data==='artigos-recebido')clearInterval(t)})})()`;
+  return 'javascript:' + encodeURIComponent(js);
+}
+
+$('#link-bookmarklet').href = codigoBookmarklet();
+$('#link-bookmarklet').addEventListener('click', (e) => {
+  e.preventDefault();
+  avisar('Arraste o botão para a barra de favoritos (não clique aqui).');
+});
+$('#btn-copiar-bookmarklet').addEventListener('click', () => copiar(codigoBookmarklet()));
+$('#btn-bookmarklet-ajuda').addEventListener('click', () => {
+  menu.open = false;
+  dialogoBookmarklet.showModal();
+});
+
+for (const d of [dialogoSalvar, dialogoToken, dialogoBookmarklet]) {
   d.querySelector('.js-fechar').addEventListener('click', () => d.close());
   d.addEventListener('click', (e) => {
     if (e.target === d) d.close();
@@ -827,6 +855,15 @@ function mostrar(vista) {
 let posicaoLista = 0;
 
 function rotear() {
+  // #salvar?url=… (bookmarklet sem comunicação; botão "ler depois" do reader no M5)
+  const s = location.hash.match(/^#salvar\?(.*)$/);
+  if (s) {
+    const url = new URLSearchParams(s[1]).get('url') || '';
+    history.replaceState(null, '', location.pathname + '#/');
+    rotear();
+    abrirSalvar(url);
+    return;
+  }
   const m = location.hash.match(/^#\/ler\/([\w-]+)(?:\?(.*))?$/);
   if (m) {
     if ($('#vista-leitura').hidden) posicaoLista = scrollY;

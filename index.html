@@ -38,6 +38,7 @@
               <button id="btn-exportar" type="button">Exportar backup</button>
               <button id="btn-importar" type="button">Importar backup</button>
               <input id="arquivo-importar" type="file" accept="application/json,.json" hidden />
+              <button id="btn-bookmarklet-ajuda" type="button">Bookmarklet (salvar com 1 clique)</button>
               <hr class="so-github" />
               <button id="btn-token" type="button" class="so-github">Token do GitHub</button>
             </div>
@@ -116,6 +117,21 @@
       <pre>npm run extrair -- "https://endereço-do-artigo"</pre>
       <p class="dica">Depois, recarregue esta página.</p>
     </div>
+  </dialog>
+
+  <dialog id="dialogo-bookmarklet" class="dialogo">
+    <div class="dialogo-cabecalho">
+      <h2>Bookmarklet</h2>
+      <button type="button" class="icon-btn js-fechar" aria-label="Fechar">✕</button>
+    </div>
+    <p>Para salvar a página que você está lendo, inclusive com paywall ou login: clique no favorito <strong>→ artigos</strong> e confirme na janelinha que abrir.</p>
+    <p><strong>Instalar (Zen, Firefox ou Chrome):</strong></p>
+    <ol class="passos">
+      <li>Mostre a barra de favoritos: <kbd>⌘</kbd> <kbd>⇧</kbd> <kbd>B</kbd>.</li>
+      <li>Arraste este botão até a barra: <a id="link-bookmarklet" class="bookmarklet" title="Arraste para a barra de favoritos">→ artigos</a></li>
+    </ol>
+    <p class="dica">Se arrastar não funcionar: <button id="btn-copiar-bookmarklet" type="button" class="link-btn">copie o código</button>, clique com o botão direito na barra de favoritos → <em>Adicionar favorito</em> (Zen/Firefox) ou <em>Adicionar página</em> (Chrome), dê o nome <strong>→ artigos</strong> e cole o código no campo do endereço (URL).</p>
+    <p class="dica">Se o navegador avisar que bloqueou uma janela pop-up, permita pop-ups para aquele site.</p>
   </dialog>
 
   <dialog id="dialogo-token" class="dialogo">

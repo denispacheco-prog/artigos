@@ -155,24 +155,32 @@ export async function carregarIndice() {
 
 /** Acrescenta ao índice os artigos que a Action gravou e o índice ainda não conhece. */
 async function sincronizar(arv) {
+  // novo, pendente ou mudado por fora (Action baixou imagens, edição em
+  // outro aparelho): o sha do arquivo no repo difere do que o índice conhece
   const faltando = [];
-  for (const caminho of arv.keys()) {
+  let mudou = false;
+  for (const [caminho, sha] of arv) {
     const m = caminho.match(/^articles\/(.+)\.json$/);
     if (!m || !ID_VALIDO.test(m[1])) continue;
     const e = entrada(m[1]);
-    if (!e || e.extraction === 'pending') faltando.push(m[1]);
+    if (!e || e.extraction === 'pending' || (e.articleSha && e.articleSha !== sha)) faltando.push(m[1]);
+    else if (!e.articleSha) {
+      e.articleSha = sha;
+      marcar(e.id, ['articleSha']);
+      mudou = true;
+    }
   }
   for (let i = 0; i < faltando.length; i += 6) {
     await Promise.all(faltando.slice(i, i + 6).map((id) => absorverArtigo(id).catch(() => {})));
   }
-  if (faltando.length) gravarIndice(0);
+  if (faltando.length || mudou) gravarIndice(0);
 }
 
 async function absorverArtigo(id, artigo = null) {
   const a = artigo || (await ler(`articles/${id}.json`));
   artigosCache.set(id, a);
   const existente = entrada(id);
-  const nova = entradaDoArtigo(a, existente);
+  const nova = { ...entradaDoArtigo(a, existente), articleSha: shas.get(`articles/${id}.json`) || null };
   if (existente) Object.assign(existente, nova);
   else indice.articles.unshift(nova);
   marcar(id, Object.keys(nova));
@@ -297,6 +305,43 @@ function vigiar(id, desde) {
 // ======================================================================
 // artigos e imagens
 // ======================================================================
+
+/** Espera todas as gravações pendentes chegarem ao GitHub (ou ao disco). */
+export async function aguardarGravacoes() {
+  for (let i = 0; i < 40 && temPendencias(); i++) {
+    await new Promise((r) => setTimeout(r, 400));
+    await fila;
+  }
+}
+
+/**
+ * Grava um artigo já extraído (bookmarklet; edição manual no 4f).
+ * Se a URL já estiver salva, substitui o texto mantendo id, estado e anotações.
+ * Devolve a entrada do índice.
+ */
+export async function salvarArtigoPronto(artigo) {
+  const existente = artigosDoIndice().find((a) => a.url === artigo.url || a.id === artigo.id);
+  const id = existente?.id || (await novoId(artigo.url));
+  const final = { ...artigo, id, savedAt: existente?.savedAt || artigo.savedAt || new Date().toISOString() };
+  const caminho = `articles/${id}.json`;
+  if (!LOCAL && !shas.has(caminho)) {
+    // o arquivo pode existir no repo sem estarmos sabendo (ex.: extração que falhou)
+    const atual = await gh.lerJsonComSha(caminho).catch(() => ({ sha: null }));
+    if (atual.sha) shas.set(caminho, atual.sha);
+  }
+  await gravarComMescla(caminho, () => final, () => {}, `artigos: ${existente ? 'substitui' : 'salva'} ${id} (${artigo.extraction?.method || 'app'})`);
+  artigosCache.set(id, Promise.resolve(final));
+  await absorverArtigo(id, final);
+  gravarIndice(0);
+  await aguardarGravacoes();
+
+  const temLinkExterno = final.images?.some((i) => i.hotlink) || final.leadImage?.hotlink;
+  if (!LOCAL && temLinkExterno) await gh.dispararImagens(final.url, id).catch((e) => ouvinteErro(e));
+  versaoAnotacoes++;
+  indiceBusca = null;
+  notificar('artigos');
+  return entrada(id);
+}
 
 const artigosCache = new Map();
 

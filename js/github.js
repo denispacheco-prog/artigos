@@ -153,6 +153,11 @@ export async function dispararExtracao(url, id) {
   await pedir(`/repos/${DONO}/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, { metodo: 'POST', corpo: { ref: RAMO, inputs: { url, id } } });
 }
 
+/** Pede à Action que baixe as imagens de um artigo salvo pelo bookmarklet. */
+export async function dispararImagens(url, id) {
+  await pedir(`/repos/${DONO}/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, { metodo: 'POST', corpo: { ref: RAMO, inputs: { url, id, modo: 'imagens' } } });
+}
+
 /** Execução mais recente do workflow para um id (ou null). */
 export async function execucaoDe(id) {
   const r = await (await pedir(`/repos/${DONO}/${REPO}/actions/workflows/${WORKFLOW}/runs?per_page=30`)).json();
