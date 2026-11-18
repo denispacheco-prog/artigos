@@ -335,8 +335,9 @@ export async function salvarArtigoPronto(artigo) {
   gravarIndice(0);
   await aguardarGravacoes();
 
+  // imagens externas → a Action baixa (e já refaz a busca); senão, só refaz a busca
   const temLinkExterno = final.images?.some((i) => i.hotlink) || final.leadImage?.hotlink;
-  if (!LOCAL && temLinkExterno) await gh.dispararImagens(final.url, id).catch((e) => ouvinteErro(e));
+  if (!LOCAL) await gh.dispararModo(temLinkExterno ? 'imagens' : 'indexar', final.url, id).catch((e) => ouvinteErro(e));
   versaoAnotacoes++;
   indiceBusca = null;
   notificar('artigos');

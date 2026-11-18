@@ -153,9 +153,10 @@ export async function dispararExtracao(url, id) {
   await pedir(`/repos/${DONO}/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, { metodo: 'POST', corpo: { ref: RAMO, inputs: { url, id } } });
 }
 
-/** Pede à Action que baixe as imagens de um artigo salvo pelo bookmarklet. */
-export async function dispararImagens(url, id) {
-  await pedir(`/repos/${DONO}/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, { metodo: 'POST', corpo: { ref: RAMO, inputs: { url, id, modo: 'imagens' } } });
+/** Pede à Action só uma parte do trabalho: 'imagens' (baixar as imagens de um
+ *  artigo do bookmarklet) ou 'indexar' (refazer a busca depois de uma edição). */
+export async function dispararModo(modo, url, id) {
+  await pedir(`/repos/${DONO}/${REPO}/actions/workflows/${WORKFLOW}/dispatches`, { metodo: 'POST', corpo: { ref: RAMO, inputs: { url, id, modo } } });
 }
 
 /** Execução mais recente do workflow para um id (ou null). */

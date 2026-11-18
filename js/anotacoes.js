@@ -23,6 +23,12 @@ export async function montar(entrada, corpo) {
   if (painelAberto()) desenharPainel();
 }
 
+/** Tira highlights e termos de busca do texto (antes de editar). */
+export function limparMarcas(corpo) {
+  despintar(corpo, 'mark.hl');
+  despintar(corpo, 'mark.termo');
+}
+
 export function desmontar() {
   fecharTudo();
   ctx = null;

@@ -77,6 +77,9 @@
       </a>
       <span id="barra-titulo" class="barra-titulo"></span>
       <div class="barra-acoes">
+        <button id="btn-editar" type="button" class="icon-btn" title="Editar o texto" aria-label="Editar o texto">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h11M4 10h8M4 14h5"/><path d="M13 20h3l5.5-5.5a2 2 0 0 0-3-3L13 17z"/></svg>
+        </button>
         <button id="btn-painel" type="button" class="icon-btn" title="Nota, tags e highlights" aria-label="Nota, tags e highlights" aria-expanded="false" aria-controls="painel-artigo">
           <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
         </button>
@@ -89,6 +92,13 @@
         <button type="button" class="icon-btn js-tema" title="Alternar tema" aria-label="Alternar tema"></button>
       </div>
     </header>
+    <div id="faixa-edicao" class="faixa-edicao" hidden>
+      <span class="faixa-edicao-texto"><strong>Editando o texto.</strong> Apague trechos, corrija palavras, ajuste título, autor e data.</span>
+      <span class="faixa-edicao-acoes">
+        <button id="btn-cancelar-edicao" type="button" class="btn-secundario">Cancelar</button>
+        <button id="btn-salvar-edicao" type="button" class="btn-primario">Salvar</button>
+      </span>
+    </div>
     <div id="painel-prefs" class="painel-prefs" role="dialog" aria-label="Preferências de leitura" hidden></div>
 
     <div id="leitura" class="leitura">

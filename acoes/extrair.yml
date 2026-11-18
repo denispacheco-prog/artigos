@@ -5,13 +5,14 @@
 # O app dispara este workflow (workflow_dispatch) com a URL e o id do artigo.
 # modo "extrair" (padrão): baixa a página e extrai.
 # modo "imagens": o artigo já existe (veio do bookmarklet); só baixa as imagens.
+# modo "indexar": só refaz o índice de busca (depois de uma edição manual).
 # Ele baixa o código do extrator do repo público artigos, extrai, grava
 # articles/<id>.json + media/<id>/ e refaz search/texto.json.
 # Não mexe no index.json: esse arquivo é do app (DECISOES.md).
 # Só ações oficiais actions/* (regra herdada do reader).
 
 name: Extrair artigo
-run-name: "${{ inputs.modo == 'imagens' && 'Imagens' || 'Extrair' }} ${{ inputs.id }}"
+run-name: "${{ inputs.modo == 'imagens' && 'Imagens' || inputs.modo == 'indexar' && 'Indexar' || 'Extrair' }} ${{ inputs.id }}"
 
 on:
   workflow_dispatch:
@@ -25,11 +26,11 @@ on:
         required: true
         type: string
       modo:
-        description: "extrair (padrão) ou imagens"
+        description: "extrair (padrão), imagens ou indexar"
         required: false
         default: extrair
         type: choice
-        options: [extrair, imagens]
+        options: [extrair, imagens, indexar]
 
 permissions:
   contents: write
@@ -62,7 +63,7 @@ jobs:
         run: npm ci --omit=dev --no-audit --no-fund
 
       - name: Extrair
-        if: inputs.modo != 'imagens'
+        if: inputs.modo == 'extrair' || inputs.modo == ''
         working-directory: codigo
         env:
           URL: ${{ inputs.url }}
@@ -86,8 +87,13 @@ jobs:
         run: |
           git config user.name "artigos-bot"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add articles media
-          if [ "$MODO" = "imagens" ]; then git commit -m "Imagens de $ID"; else git commit -m "Extrai $ID"; fi
+          git add -A
+          case "$MODO" in
+            imagens) MSG="Imagens de $ID" ;;
+            indexar) MSG="" ;;
+            *) MSG="Extrai $ID" ;;
+          esac
+          if [ -n "$MSG" ] && ! git diff --cached --quiet; then git commit -m "$MSG"; fi
           for tentativa in 1 2 3 4 5; do
             git pull --rebase -X theirs origin main
             node ../codigo/scripts/indexar.js --saida .

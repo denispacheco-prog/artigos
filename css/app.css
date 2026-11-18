@@ -1973,3 +1973,94 @@ kbd {
   text-decoration: none;
   cursor: grab;
 }
+
+/* ===== Edição manual (4f) ===== */
+
+.faixa-edicao {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-4);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+
+.faixa-edicao-acoes {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.edicao-campos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: 2rem;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--fg);
+  font-family: var(--font-sans);
+}
+
+.edicao-linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.edicao-linha .edicao-campo {
+  flex: 1 1 12rem;
+}
+
+.edicao-campo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.edicao-campo input {
+  padding: 0.5rem 0.65rem;
+  font-size: 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.edicao-campo input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.edicao-check {
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+
+.artigo-corpo.editando {
+  outline: 2px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 0.8rem;
+  border-radius: 2px;
+  caret-color: var(--accent);
+}
+
+.artigo-corpo.editando:focus {
+  outline-style: solid;
+}
+
+body.modo-edicao .painel-artigo,
+body.modo-edicao .artigo-rodape {
+  display: none;
+}

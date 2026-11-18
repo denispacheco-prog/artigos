@@ -59,8 +59,12 @@ Aprovadas em 18/11/2026.
 - **M2** — lista + leitura + preferências, local, com a moldura visual. ✓
 - **M3** — highlights, notas, tags, estados, busca, backup. ✓
   Testes: `npm test` (ancoragem e busca no texto).
-- **M4** — Action, repo privado, token, Pages, bookmarklet, edição manual. ← atual
-- **M5** — integração com reader e meus-bookmarks.
+- **M4** — Action, repo privado, token, Pages, bookmarklet, edição manual. ✓
+  Action com 3 modos: extrair (URL colada), imagens (bookmarklet), indexar
+  (edição manual). Cada entrada do índice guarda `articleSha` para o app
+  perceber artigos mudados por fora.
+- **M5** — integração com reader e meus-bookmarks. ← próximo
+  O endereço `#salvar?url=…` (abre "+ Salvar" preenchido) já existe.
 
 Ambiente: Mac Intel, macOS 12 (Monterey) → Node 22 LTS (o 24 exige macOS
 13.5+). Suporte do Node 22 termina em abril de 2027.

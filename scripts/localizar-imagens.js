@@ -31,7 +31,7 @@ const { imagens, principal } = await cuidarDasImagens(corpo, id, a.url, principa
 
 a.contentHtml = corpo.innerHTML;
 a.images = imagens;
-if (principal) a.leadImage = { ...a.leadImage, ...principal };
+if (principal) a.leadImage = { ...a.leadImage, hotlink: false, ...principal }; // principal traz hotlink:true se o download falhou
 else if (principalOriginal) a.leadImage = null; // capa descartada (pequena, svg…)
 a.extraction = { ...a.extraction, imagesAt: new Date().toISOString(), warnings: [...new Set([...(a.extraction?.warnings || []), ...avisos])] };
 

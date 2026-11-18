@@ -4,12 +4,13 @@
 import DOMPurify from '../vendor/purify-3.4.18.es.mjs';
 import { sanitizar } from '../lib/sanitizar.js';
 import { termosDaConsulta } from '../lib/busca.js';
+import { tempoDeLeitura } from '../lib/extrair-nucleo.js';
 import * as dados from './dados.js';
 import * as github from './github.js';
 import * as anotacoes from './anotacoes.js';
 import * as busca from './busca.js';
 import { desenharVistaHighlights } from './vista-highlights.js';
-import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural, copiar } from './util.js';
+import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural, copiar, textoDeHtml } from './util.js';
 
 dados.aoErrar((e) => {
   avisar(e.message);
@@ -698,14 +699,14 @@ document.addEventListener('click', (e) => {
 
 let artigoAberto = null;
 
-async function abrirArtigo(id, { consulta = null, hl = null } = {}) {
+async function abrirArtigo(id, { consulta = null, hl = null, forcar = false } = {}) {
   const a = dados.entrada(id);
   if (!a) {
     avisar('Artigo não encontrado.');
     location.hash = '#/';
     return;
   }
-  const mesmoArtigo = artigoAberto === a && $('#artigo .artigo-corpo');
+  const mesmoArtigo = !forcar && artigoAberto === a && $('#artigo .artigo-corpo');
   artigoAberto = a;
   mostrar('leitura');
   aplicarPrefs();
@@ -766,6 +767,7 @@ async function abrirArtigo(id, { consulta = null, hl = null } = {}) {
   corpo.innerHTML = sanitizar(DOMPurify, completo.contentHtml || '');
   for (const img of corpo.querySelectorAll('img')) {
     const src = img.getAttribute('src');
+    img.dataset.original = src; // a edição manual devolve este caminho ao arquivo
     img.removeAttribute('src');
     img.decoding = 'async';
     dados.aplicarMidia(img, src);
@@ -839,6 +841,139 @@ function atualizarProgresso() {
 addEventListener('scroll', atualizarProgresso, { passive: true });
 
 // ======================================================================
+// edição manual do texto (4f)
+// Serve para apagar e corrigir, não para formatar: colar entra como texto
+// simples e atalhos de negrito/itálico ficam desligados. Ao salvar, o texto
+// passa de novo pela limpeza e vai para o repo; a Action refaz a busca.
+// ======================================================================
+
+let edicao = null; // { a, completo, corpo, campos, sujo }
+let ignorarHash = false;
+
+function campoEdicao(rotulo, entrada) {
+  return el('label', { class: 'edicao-campo' }, el('span', { text: rotulo }), entrada);
+}
+
+async function entrarEdicao() {
+  const corpo = $('#artigo .artigo-corpo');
+  if (!artigoAberto || edicao || !corpo) return;
+  const a = artigoAberto;
+  const completo = await dados.carregarArtigo(a.id);
+  abrirPrefs(false);
+  anotacoes.limparMarcas(corpo);
+  anotacoes.desmontar();
+
+  const titulo = el('input', { type: 'text', value: completo.title || '' });
+  const autor = el('input', { type: 'text', value: completo.byline || '' });
+  const data = el('input', { type: 'date', value: (completo.publishedAt || '').slice(0, 10) });
+  const capa = completo.leadImage && !completo.leadImage.inBody ? el('input', { type: 'checkbox', checked: true }) : null;
+  const campos = el(
+    'div',
+    { class: 'edicao-campos' },
+    campoEdicao('Título', titulo),
+    el('div', { class: 'edicao-linha' }, campoEdicao('Autor', autor), campoEdicao('Data de publicação', data)),
+    capa ? el('label', { class: 'edicao-check' }, capa, ' Mostrar a imagem de capa') : null,
+  );
+  $('#artigo .artigo-cabecalho').hidden = true;
+  $('#artigo').prepend(campos);
+
+  try {
+    document.execCommand('defaultParagraphSeparator', false, 'p'); // Enter cria <p>, não <div>
+  } catch {}
+  corpo.contentEditable = 'true';
+  corpo.spellcheck = true;
+  corpo.classList.add('editando');
+  edicao = { a, completo, corpo, campos: { titulo, autor, data, capa }, sujo: false };
+  const sujar = () => edicao && (edicao.sujo = true);
+  corpo.addEventListener('input', sujar);
+  campos.addEventListener('input', sujar);
+  corpo.addEventListener('paste', (e) => {
+    e.preventDefault();
+    document.execCommand('insertText', false, e.clipboardData.getData('text/plain'));
+  });
+  corpo.addEventListener('drop', (e) => e.preventDefault());
+  corpo.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && ['b', 'i', 'u'].includes(e.key.toLowerCase())) e.preventDefault();
+  });
+
+  document.body.classList.add('modo-edicao');
+  $('#faixa-edicao').hidden = false;
+  $('#barra-leitura').hidden = true;
+  titulo.focus();
+}
+
+function sairEdicao() {
+  edicao = null;
+  document.body.classList.remove('modo-edicao');
+  $('#faixa-edicao').hidden = true;
+  $('#barra-leitura').hidden = false;
+}
+
+async function salvarEdicao() {
+  if (!edicao) return;
+  const { a, completo, corpo, campos } = edicao;
+  const botao = $('#btn-salvar-edicao');
+
+  // devolve às imagens o caminho do arquivo e transforma <div> soltos em parágrafos
+  const copia = corpo.cloneNode(true);
+  for (const img of copia.querySelectorAll('img')) if (img.dataset.original) img.setAttribute('src', img.dataset.original);
+  for (const div of copia.querySelectorAll('div')) {
+    if (div.querySelector('p, ul, ol, figure, blockquote, h2, h3, h4, table')) continue;
+    const p = document.createElement('p');
+    p.append(...div.childNodes);
+    div.replaceWith(p);
+  }
+  const html = sanitizar(DOMPurify, copia.innerHTML);
+  const texto = textoDeHtml(html);
+  const palavras = texto ? texto.split(' ').length : 0;
+  if (!palavras && !confirm('O texto ficou vazio. Salvar assim mesmo?')) return;
+
+  const tmp = document.createElement('template');
+  tmp.innerHTML = html;
+  const srcs = new Set([...tmp.content.querySelectorAll('img')].map((i) => i.getAttribute('src')));
+  const agora = new Date().toISOString();
+  const novo = {
+    ...completo,
+    title: campos.titulo.value.trim() || completo.title,
+    byline: campos.autor.value.trim() || null,
+    publishedAt: campos.data.value ? new Date(`${campos.data.value}T12:00:00Z`).toISOString() : null,
+    leadImage: campos.capa && !campos.capa.checked ? null : completo.leadImage,
+    contentHtml: html,
+    images: (completo.images || []).filter((i) => srcs.has(i.src)),
+    wordCount: palavras,
+    readingMinutes: tempoDeLeitura(palavras, srcs.size),
+    extraction: { ...completo.extraction, status: palavras ? 'ok' : 'failed', error: palavras ? null : 'Texto vazio.', warnings: [] },
+    edits: [...(completo.edits || []), { at: agora, kind: 'manual' }],
+  };
+
+  botao.disabled = true;
+  botao.textContent = 'Salvando…';
+  try {
+    await dados.salvarArtigoPronto(novo);
+    sairEdicao();
+    avisar('Texto salvo.');
+    await abrirArtigo(a.id, { forcar: true });
+  } catch (e) {
+    avisar(`Não foi possível salvar: ${e.message}`);
+  } finally {
+    botao.disabled = false;
+    botao.textContent = 'Salvar';
+  }
+}
+
+async function cancelarEdicao() {
+  if (!edicao) return;
+  if (edicao.sujo && !confirm('Descartar as mudanças no texto?')) return;
+  const id = edicao.a.id;
+  sairEdicao();
+  await abrirArtigo(id, { forcar: true });
+}
+
+$('#btn-editar').addEventListener('click', entrarEdicao);
+$('#btn-salvar-edicao').addEventListener('click', salvarEdicao);
+$('#btn-cancelar-edicao').addEventListener('click', cancelarEdicao);
+
+// ======================================================================
 // navegação: #/  ·  #/ler/<id>  ·  #/ler/<id>?q=termo  ·  #/ler/<id>?hl=<id>
 // ======================================================================
 
@@ -855,6 +990,18 @@ function mostrar(vista) {
 let posicaoLista = 0;
 
 function rotear() {
+  if (ignorarHash) {
+    ignorarHash = false;
+    return;
+  }
+  if (edicao) {
+    if (edicao.sujo && !confirm('Sair sem salvar a edição do texto?')) {
+      ignorarHash = true;
+      location.hash = `#/ler/${edicao.a.id}`;
+      return;
+    }
+    sairEdicao();
+  }
   // #salvar?url=… (bookmarklet sem comunicação; botão "ler depois" do reader no M5)
   const s = location.hash.match(/^#salvar\?(.*)$/);
   if (s) {
@@ -882,7 +1029,7 @@ function rotear() {
 
 addEventListener('hashchange', rotear);
 addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
+  if (e.key !== 'Escape' || edicao) return;
   if (!painelPrefs.hidden) abrirPrefs(false);
   else if (!$('#vista-leitura').hidden && !e.target.closest?.('textarea, input')) location.hash = '#/';
 });
@@ -893,7 +1040,7 @@ addEventListener('keydown', (e) => {
   }
 });
 addEventListener('beforeunload', (e) => {
-  if (dados.temPendencias()) e.preventDefault();
+  if (dados.temPendencias() || edicao?.sujo) e.preventDefault();
 });
 
 // ======================================================================
