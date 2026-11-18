@@ -382,16 +382,35 @@ function abrirSalvar(urlInicial = '') {
 
 $('#btn-salvar').addEventListener('click', () => abrirSalvar());
 
-$('#form-salvar').addEventListener('submit', async (e) => {
+/** "Ler depois" do reader: salva sem esperar clique e, se for uma janelinha, fecha sozinha. */
+async function salvarAutomatico() {
+  const janelinha = window.name === 'artigos_salvar';
+  if (janelinha) document.body.classList.add('modo-janelinha');
+  await envioSalvar();
+  if (janelinha && !$('#form-salvar').dataset.erro) setTimeout(() => close(), 2200);
+}
+
+$('#form-salvar').addEventListener('submit', (e) => {
   e.preventDefault();
+  envioSalvar();
+});
+
+async function envioSalvar() {
+  const form = $('#form-salvar');
   const campo = $('#url-salvar');
   const status = $('#status-salvar');
-  const botao = e.target.querySelector('button[type="submit"]');
+  const botao = form.querySelector('button[type="submit"]');
   if (!campo.value.trim()) return campo.focus();
+  delete form.dataset.erro;
   botao.disabled = true;
   status.textContent = 'Salvando…';
   try {
     const { entrada, jaExistia } = await dados.salvarUrl(campo.value);
+    if (document.body.classList.contains('modo-janelinha')) {
+      status.textContent = jaExistia ? 'Esse artigo já estava salvo. ✓' : 'Salvo no Artigos. ✓ O texto fica pronto em 1 a 2 minutos.';
+      botao.hidden = true;
+      return;
+    }
     dialogoSalvar.close();
     if (jaExistia) {
       avisar('Esse artigo já estava salvo.');
@@ -403,11 +422,12 @@ $('#form-salvar').addEventListener('submit', async (e) => {
       desenharLista();
     }
   } catch (err) {
+    form.dataset.erro = '1';
     status.textContent = err.message;
   } finally {
     botao.disabled = false;
   }
-});
+}
 
 // ---------------------------------------------------------------- token
 
@@ -949,7 +969,7 @@ async function salvarEdicao() {
   botao.disabled = true;
   botao.textContent = 'Salvando…';
   try {
-    await dados.salvarArtigoPronto(novo);
+    await dados.salvarArtigoPronto(novo, { motivo: 'edição manual' });
     sairEdicao();
     avisar('Texto salvo.');
     await abrirArtigo(a.id, { forcar: true });
@@ -1005,10 +1025,12 @@ function rotear() {
   // #salvar?url=… (bookmarklet sem comunicação; botão "ler depois" do reader no M5)
   const s = location.hash.match(/^#salvar\?(.*)$/);
   if (s) {
-    const url = new URLSearchParams(s[1]).get('url') || '';
+    const params = new URLSearchParams(s[1]);
+    const url = params.get('url') || '';
     history.replaceState(null, '', location.pathname + '#/');
     rotear();
     abrirSalvar(url);
+    if (params.get('auto') === '1' && url) salvarAutomatico(); // botão "ler depois" do reader
     return;
   }
   const m = location.hash.match(/^#\/ler\/([\w-]+)(?:\?(.*))?$/);

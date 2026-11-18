@@ -3,6 +3,7 @@
 
 import * as dados from './dados.js';
 import { el, svg, ICONES, CORES, dataCurta, plural, copiar } from './util.js';
+import { exportarHighlight, jaEnviado, rotuloEnviado } from './exportar-quote.js';
 
 const citacao = (h) => h.target.selector.find((s) => s.type === 'TextQuoteSelector')?.exact || '';
 const posicao = (h) => h.target.selector.find((s) => s.type === 'TextPositionSelector')?.start ?? 0;
@@ -71,27 +72,43 @@ export async function desenharVistaHighlights(alvo, contagem, filtros, aoMudarCo
         el(
           'ul',
           { class: 'citacoes' },
-          ...hls.map((h) =>
-            el(
-              'li',
-              { class: `citacao hl-borda-${h.color}` },
-              el('a', { class: 'citacao-texto', href: `#/ler/${entrada.id}?hl=${h.id}`, title: 'Abrir no artigo' }, citacao(h)),
-              h.note?.trim() ? el('p', { class: 'citacao-nota', text: h.note }) : null,
-              el(
-                'div',
-                { class: 'citacao-acoes' },
-                el('button', {
-                  type: 'button',
-                  class: 'acao',
-                  title: 'Copiar com a referência',
-                  'aria-label': 'Copiar com a referência',
-                  onclick: () => copiar(`“${citacao(h)}”${h.note?.trim() ? `\n\nNota: ${h.note.trim()}` : ''}\n\n— ${entrada.title}${entrada.siteName ? `, ${entrada.siteName}` : ''}\n${entrada.url}`),
-                }, svg(ICONES.copiar, { tamanho: 14 })),
-              ),
-            ),
-          ),
+          ...hls.map((h) => itemCitacao(entrada, h)),
         ),
       ),
     ),
   );
+}
+
+function itemCitacao(entrada, h) {
+  const li = el(
+    'li',
+    { class: `citacao hl-borda-${h.color}` },
+    el('a', { class: 'citacao-texto', href: `#/ler/${entrada.id}?hl=${h.id}`, title: 'Abrir no artigo' }, citacao(h)),
+    h.note?.trim() ? el('p', { class: 'citacao-nota', text: h.note }) : null,
+    jaEnviado(h) ? el('p', { class: 'citacao-enviado', title: rotuloEnviado(h), text: 'no meus-bookmarks ✓' }) : null,
+    el(
+      'div',
+      { class: 'citacao-acoes' },
+      jaEnviado(h)
+        ? null
+        : el('button', {
+            type: 'button',
+            class: 'acao acao-texto',
+            title: 'Enviar ao meus-bookmarks como Quote',
+            onclick: async (e) => {
+              e.currentTarget.disabled = true;
+              if (await exportarHighlight(entrada, h)) li.replaceWith(itemCitacao(entrada, h));
+              else e.currentTarget.disabled = false;
+            },
+          }, '→ Quote'),
+      el('button', {
+        type: 'button',
+        class: 'acao',
+        title: 'Copiar com a referência',
+        'aria-label': 'Copiar com a referência',
+        onclick: () => copiar(`“${citacao(h)}”${h.note?.trim() ? `\n\nNota: ${h.note.trim()}` : ''}\n\n— ${entrada.title}${entrada.siteName ? `, ${entrada.siteName}` : ''}\n${entrada.url}`),
+      }, svg(ICONES.copiar, { tamanho: 14 })),
+    ),
+  );
+  return li;
 }

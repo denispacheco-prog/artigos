@@ -136,7 +136,7 @@ async function mostrarPrevia(artigo) {
     botao.disabled = true;
     status.textContent = 'Salvando…';
     try {
-      const e = await dados.salvarArtigoPronto(artigo);
+      const e = await dados.salvarArtigoPronto(artigo, { motivo: 'bookmarklet' });
       mostrar(
         el('p', { class: 'receber-ok', text: existente ? 'Texto substituído. ✓' : 'Salvo no Artigos. ✓' }),
         artigo.images.length || artigo.leadImage ? el('p', { class: 'dica', text: 'As imagens serão copiadas para o seu repositório em 1 a 2 minutos.' }) : null,

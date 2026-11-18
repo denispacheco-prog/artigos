@@ -319,7 +319,7 @@ export async function aguardarGravacoes() {
  * Se a URL já estiver salva, substitui o texto mantendo id, estado e anotações.
  * Devolve a entrada do índice.
  */
-export async function salvarArtigoPronto(artigo) {
+export async function salvarArtigoPronto(artigo, { motivo = artigo.extraction?.method || 'app' } = {}) {
   const existente = artigosDoIndice().find((a) => a.url === artigo.url || a.id === artigo.id);
   const id = existente?.id || (await novoId(artigo.url));
   const final = { ...artigo, id, savedAt: existente?.savedAt || artigo.savedAt || new Date().toISOString() };
@@ -329,7 +329,7 @@ export async function salvarArtigoPronto(artigo) {
     const atual = await gh.lerJsonComSha(caminho).catch(() => ({ sha: null }));
     if (atual.sha) shas.set(caminho, atual.sha);
   }
-  await gravarComMescla(caminho, () => final, () => {}, `artigos: ${existente ? 'substitui' : 'salva'} ${id} (${artigo.extraction?.method || 'app'})`);
+  await gravarComMescla(caminho, () => final, () => {}, `artigos: ${existente ? 'substitui' : 'salva'} ${id} (${motivo})`);
   artigosCache.set(id, Promise.resolve(final));
   await absorverArtigo(id, final);
   gravarIndice(0);

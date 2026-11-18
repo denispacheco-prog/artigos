@@ -2064,3 +2064,44 @@ body.modo-edicao .painel-artigo,
 body.modo-edicao .artigo-rodape {
   display: none;
 }
+
+/* ===== Integração (M5) ===== */
+
+.pop-enviado,
+.citacao-enviado {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.pop-enviado {
+  align-self: center;
+}
+
+.citacao-enviado {
+  margin: 0.3rem 0 0;
+}
+
+.acao.acao-texto {
+  width: auto;
+  padding: 0 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.citacao-acoes {
+  display: flex;
+  gap: 2px;
+}
+
+.citacao:has(.citacao-acoes .acao-texto) .citacao-texto {
+  padding-right: 6.5rem;
+}
+
+/* janelinha aberta pelo "ler depois" do reader: só o diálogo de salvar */
+body.modo-janelinha .vista-lista > * {
+  visibility: hidden;
+}
+
+body.modo-janelinha .dialogo {
+  width: calc(100vw - 32px);
+}

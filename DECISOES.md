@@ -63,8 +63,14 @@ Aprovadas em 18/11/2026.
   Action com 3 modos: extrair (URL colada), imagens (bookmarklet), indexar
   (edição manual). Cada entrada do índice guarda `articleSha` para o app
   perceber artigos mudados por fora.
-- **M5** — integração com reader e meus-bookmarks. ← próximo
-  O endereço `#salvar?url=…` (abre "+ Salvar" preenchido) já existe.
+- **M5** — integração com reader e meus-bookmarks. ✓
+  - reader: botão ↧ nos cards abre `artigos/#salvar?auto=1&url=…` numa
+    janelinha que salva sozinha e fecha.
+  - Highlight → Quote: grava em meus-bookmarks/data/bookmarks.json com o token
+    do próprio meus-bookmarks (mesma origem). Descrição = trecho +
+    "\n\n— Nota: …". O highlight guarda `exportedTo` para não duplicar.
+  - Limitação: links do Google Notícias no reader não extraem pela Action
+    (redirecionam por JavaScript); usar o bookmarklet.
 
 Ambiente: Mac Intel, macOS 12 (Monterey) → Node 22 LTS (o 24 exige macOS
 13.5+). Suporte do Node 22 termina em abril de 2027.

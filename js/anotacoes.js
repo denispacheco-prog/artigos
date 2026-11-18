@@ -2,6 +2,7 @@
 
 import * as dados from './dados.js';
 import { $, el, svg, ICONES, CORES, armazenamento, debounce, copiar, plural, avisar } from './util.js';
+import { exportarHighlight, jaEnviado, rotuloEnviado } from './exportar-quote.js';
 import { textoCorrido, posicoesDoRange, aparar, criarSeletores, ancorar, pintar, despintar, acharTermos } from '../lib/ancora.js';
 
 let ctx = null; // { entrada, corpo, anot, texto, orfaos }
@@ -216,6 +217,20 @@ function abrirPopover(h, ancoraEl, { focarNota = false } = {}) {
       'div',
       { class: 'pop-acoes' },
       el('button', { type: 'button', class: 'pop-btn', onclick: () => copiar(textoParaCopiar(h)) }, svg(ICONES.copiar, { tamanho: 14 }), 'Copiar'),
+      jaEnviado(h)
+        ? el('span', { class: 'pop-enviado', title: rotuloEnviado(h), text: 'Quote ✓' })
+        : el('button', {
+            type: 'button',
+            class: 'pop-btn',
+            title: 'Enviar ao meus-bookmarks como Quote',
+            onclick: async (e) => {
+              const b = e.currentTarget;
+              b.disabled = true;
+              salvarNota.agora(); // a nota escrita até aqui vai junto
+              if (await exportarHighlight(ctx.entrada, h)) abrirPopover(h, ctx.corpo.querySelector(`mark[data-hl="${h.id}"].hl-fim`));
+              else b.disabled = false;
+            },
+          }, '→ Quote'),
       el('button', { type: 'button', class: 'pop-btn pop-apagar', onclick: () => apagar(h) }, svg(ICONES.lixo, { tamanho: 14 }), 'Apagar'),
     ),
   );
