@@ -14,6 +14,7 @@ import sharp from 'sharp';
 import { normalizarUrl } from '../lib/url.js';
 import { sanitizar } from '../lib/sanitizar.js';
 import { extrairArtigo, textoNormalizado, PISTAS_PAYWALL } from '../lib/extrair-nucleo.js';
+import { gerarIndiceBusca } from './indexar.js';
 
 const FERRAMENTA = 'readability@0.6.0';
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36';
@@ -383,6 +384,8 @@ async function main() {
 
   await writeFile(arqIndex, JSON.stringify(index, null, 2));
   await escreverIndicePrevia(saida, index);
+  const busca = await gerarIndiceBusca(saida);
+  console.log(`Índice de busca atualizado: ${busca.artigos} artigos, ${(busca.bytes / 1024).toFixed(0)} KB.`);
   console.log(`\nPrévia: ${path.resolve(saida, 'previa', 'index.html')}`);
 }
 

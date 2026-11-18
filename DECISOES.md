@@ -56,9 +56,10 @@ Aprovadas em 18/11/2026.
   primeiro commit. ✓
 - **M1** — extrator local sobre 5 URLs de teste → `amostra-dados/`. ✓
   Imagens: até 30 ou 3 MB por artigo (o limite de 8 cortava ensaios).
-- **M2** — lista + leitura + preferências, local, com a moldura visual. ← atual
-- **M3** — highlights, notas, tags, estados, busca, backup.
-- **M4** — Action, repo privado, token, Pages, bookmarklet, edição manual.
+- **M2** — lista + leitura + preferências, local, com a moldura visual. ✓
+- **M3** — highlights, notas, tags, estados, busca, backup. ✓
+  Testes: `npm test` (ancoragem e busca no texto).
+- **M4** — Action, repo privado, token, Pages, bookmarklet, edição manual. ← atual
 - **M5** — integração com reader e meus-bookmarks.
 
 Ambiente: Mac Intel, macOS 12 (Monterey) → Node 22 LTS (o 24 exige macOS

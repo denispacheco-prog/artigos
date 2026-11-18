@@ -25,11 +25,21 @@
       <div class="app-header-actions">
         <label class="search-field">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-          <input id="busca" type="search" placeholder="Buscar por título, site, autor…" autocomplete="off" aria-label="Buscar" />
+          <input id="busca" type="search" placeholder="Buscar no texto, highlights e notas…" autocomplete="off" aria-label="Buscar" />
         </label>
         <div class="app-header-controls">
           <button id="btn-salvar" type="button" class="btn-primario">+ Salvar</button>
           <button type="button" class="icon-btn js-tema" title="Alternar tema" aria-label="Alternar tema"></button>
+          <details class="header-menu">
+            <summary class="icon-btn" title="Mais opções" aria-label="Mais opções">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+            </summary>
+            <div class="header-menu-list">
+              <button id="btn-exportar" type="button">Exportar backup</button>
+              <button id="btn-importar" type="button">Importar backup</button>
+              <input id="arquivo-importar" type="file" accept="application/json,.json" hidden />
+            </div>
+          </details>
         </div>
       </div>
     </header>
@@ -64,6 +74,9 @@
       </a>
       <span id="barra-titulo" class="barra-titulo"></span>
       <div class="barra-acoes">
+        <button id="btn-painel" type="button" class="icon-btn" title="Nota, tags e highlights" aria-label="Nota, tags e highlights" aria-expanded="false" aria-controls="painel-artigo">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>
+        </button>
         <button id="btn-prefs" type="button" class="icon-btn btn-aa" title="Preferências de leitura" aria-label="Preferências de leitura" aria-expanded="false" aria-controls="painel-prefs">Aa</button>
         <button id="btn-favorito" type="button" class="icon-btn" aria-label="Favoritar"></button>
         <button id="btn-arquivar" type="button" class="icon-btn" aria-label="Arquivar"></button>
@@ -78,6 +91,9 @@
     <div id="leitura" class="leitura">
       <article id="artigo" class="artigo"></article>
     </div>
+    <aside id="painel-artigo" class="painel-artigo" aria-label="Anotações do artigo" hidden></aside>
+    <div id="barra-selecao" class="barra-selecao" role="toolbar" aria-label="Marcar trecho" hidden></div>
+    <div id="pop-hl" class="pop-hl" role="dialog" aria-label="Highlight" hidden></div>
   </div>
 
   <dialog id="dialogo-salvar" class="dialogo">

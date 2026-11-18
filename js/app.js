@@ -1,101 +1,15 @@
-// Artigos — app (M2: lista, leitura, preferências; dados locais).
+// Artigos — app: lista, leitura, preferências (M2); highlights, notas, tags,
+// busca e backup (M3). Dados locais até o M4.
 
 import DOMPurify from '../vendor/purify-3.4.18.es.mjs';
 import { sanitizar } from '../lib/sanitizar.js';
+import { termosDaConsulta } from '../lib/busca.js';
 import * as dados from './dados.js';
+import * as anotacoes from './anotacoes.js';
+import * as busca from './busca.js';
+import { desenharVistaHighlights } from './vista-highlights.js';
+import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural } from './util.js';
 
-// ======================================================================
-// utilidades
-// ======================================================================
-
-const $ = (sel, raiz = document) => raiz.querySelector(sel);
-
-function el(tag, props = {}, ...filhos) {
-  const e = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (v == null || v === false) continue;
-    if (k === 'class') e.className = v;
-    else if (k === 'text') e.textContent = v;
-    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
-    else e.setAttribute(k, v === true ? '' : v);
-  }
-  for (const f of filhos.flat()) if (f != null && f !== false) e.append(f);
-  return e;
-}
-
-function svg(caminhos, { tamanho = 16, preenchido = false } = {}) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const s = document.createElementNS(ns, 'svg');
-  s.setAttribute('viewBox', '0 0 24 24');
-  s.setAttribute('width', tamanho);
-  s.setAttribute('height', tamanho);
-  s.setAttribute('aria-hidden', 'true');
-  s.setAttribute('fill', preenchido ? 'currentColor' : 'none');
-  s.setAttribute('stroke', 'currentColor');
-  s.setAttribute('stroke-width', '1.8');
-  s.setAttribute('stroke-linecap', 'round');
-  s.setAttribute('stroke-linejoin', 'round');
-  for (const d of [].concat(caminhos)) {
-    const p = document.createElementNS(ns, 'path');
-    p.setAttribute('d', d);
-    s.append(p);
-  }
-  return s;
-}
-
-const ICONES = {
-  estrela: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
-  arquivar: ['M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M3 4h18v3H3z', 'M10 11h4'],
-  desarquivar: ['M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M3 4h18v3H3z', 'M12 17v-6M9.5 13.5L12 11l2.5 2.5'],
-  original: ['M14 4h6v6', 'M20 4l-9 9', 'M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5'],
-  sol: ['M12 4V2M12 22v-2M4 12H2M22 12h-2M5.6 5.6L4.2 4.2M19.8 19.8l-1.4-1.4M5.6 18.4l-1.4 1.4M19.8 4.2l-1.4 1.4', 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'],
-  lua: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z',
-};
-
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-
-function dataCurta(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const base = `${d.getDate()} ${MESES[d.getMonth()]}`;
-  return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${d.getFullYear()}`;
-}
-
-function dataLonga(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : `${d.getDate()} ${MESES[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-const semAcento = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-
-const armazenamento = {
-  ler(chave, padrao) {
-    try {
-      const v = localStorage.getItem(chave);
-      return v == null ? padrao : JSON.parse(v);
-    } catch {
-      return padrao;
-    }
-  },
-  gravar(chave, valor) {
-    try {
-      localStorage.setItem(chave, JSON.stringify(valor));
-    } catch {
-      /* navegador sem armazenamento: segue sem lembrar */
-    }
-  },
-};
-
-let avisoTimer = null;
-function avisar(texto) {
-  const a = $('#aviso');
-  a.textContent = texto;
-  a.hidden = false;
-  clearTimeout(avisoTimer);
-  avisoTimer = setTimeout(() => (a.hidden = true), 4000);
-}
 dados.aoErrar((e) => avisar(e.message));
 
 // ======================================================================
@@ -137,35 +51,27 @@ const FILTROS = [
   { id: 'ler', nome: 'Para ler', teste: (a) => !a.archivedAt },
   { id: 'favoritos', nome: 'Favoritos', teste: (a) => a.favorite },
   { id: 'arquivados', nome: 'Arquivados', teste: (a) => !!a.archivedAt },
+  { id: 'highlights', nome: 'Highlights', contar: (todos) => todos.reduce((s, a) => s + (a.highlightCount || 0), 0) },
 ];
 
 const estado = {
   filtro: armazenamento.ler('artigos:filtro', 'ler'),
   tag: null,
   busca: '',
+  cores: new Set(),
 };
-
-function artigosFiltrados() {
-  const filtro = FILTROS.find((f) => f.id === estado.filtro) || FILTROS[0];
-  const termos = semAcento(estado.busca).split(/\s+/).filter(Boolean);
-  return dados
-    .artigosDoIndice()
-    .filter(filtro.teste)
-    .filter((a) => !estado.tag || (a.tags || []).includes(estado.tag))
-    .filter((a) => {
-      if (!termos.length) return true;
-      const alvo = semAcento([a.title, a.siteName, a.byline, a.excerpt, ...(a.tags || [])].join(' '));
-      return termos.every((t) => alvo.includes(t));
-    })
-    .sort((x, y) => (y.savedAt || '').localeCompare(x.savedAt || ''));
-}
+if (!FILTROS.some((f) => f.id === estado.filtro)) estado.filtro = 'ler';
 
 // ======================================================================
 // lista
 // ======================================================================
 
-function desenharLista() {
+let geracao = 0; // descarta desenhos assíncronos que ficaram velhos
+
+async function desenharLista() {
+  const minha = ++geracao;
   const todos = dados.artigosDoIndice();
+  const buscando = estado.busca.trim().length >= 2;
 
   // filtros com contagem
   $('#filtros').replaceChildren(
@@ -174,39 +80,40 @@ function desenharLista() {
         'button',
         {
           type: 'button',
-          class: 'filtro' + (f.id === estado.filtro ? ' ativo' : ''),
+          class: 'filtro' + (f.id === estado.filtro && !buscando ? ' ativo' : ''),
           'aria-current': f.id === estado.filtro ? 'true' : null,
           onclick: () => {
             estado.filtro = f.id;
             armazenamento.gravar('artigos:filtro', f.id);
+            if (estado.busca) {
+              estado.busca = '';
+              $('#busca').value = '';
+            }
             desenharLista();
           },
         },
         el('span', { text: f.nome }),
-        el('span', { class: 'filtro-n', text: String(todos.filter(f.teste).length) }),
+        el('span', { class: 'filtro-n', text: String(f.contar ? f.contar(todos) : todos.filter(f.teste).length) }),
       ),
     ),
   );
 
   // tags
-  const contagemTags = new Map();
-  for (const a of todos) for (const t of a.tags || []) contagemTags.set(t, (contagemTags.get(t) || 0) + 1);
+  const contagemTags = dados.todasAsTags();
   const nuvem = $('#nuvem-tags');
   if (!contagemTags.size) {
-    nuvem.replaceChildren(el('p', { class: 'nota-vazia', text: 'Nenhuma tag ainda.' }));
+    nuvem.replaceChildren(el('p', { class: 'nota-vazia', text: 'Nenhuma tag ainda. Adicione no painel ✎ de um artigo.' }));
   } else {
     nuvem.replaceChildren(
       ...[...contagemTags.entries()]
         .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
-        .map(([t, n]) =>
-          el('button', { type: 'button', class: 'tag' + (t === estado.tag ? ' ativa' : ''), title: `${n} artigo(s)`, onclick: () => escolherTag(t === estado.tag ? null : t) }, t),
-        ),
+        .map(([t, n]) => el('button', { type: 'button', class: 'tag' + (t === estado.tag ? ' ativa' : ''), title: plural(n, 'artigo', 'artigos'), onclick: () => escolherTag(t === estado.tag ? null : t) }, t)),
     );
   }
 
   // filtro de tag ativo
   const ativos = $('#filtros-ativos');
-  ativos.hidden = !estado.tag;
+  ativos.hidden = !estado.tag || buscando;
   if (estado.tag) {
     ativos.replaceChildren(
       el('span', { class: 'filtros-ativos-rotulo', text: 'Filtrando por' }),
@@ -214,22 +121,38 @@ function desenharLista() {
     );
   }
 
-  const itens = artigosFiltrados();
-  const nome = (FILTROS.find((f) => f.id === estado.filtro) || FILTROS[0]).nome;
-  $('#contagem').textContent = `${itens.length} ${itens.length === 1 ? 'artigo' : 'artigos'} · ${nome}`;
-  $('#lista').replaceChildren(...itens.map(itemDaLista));
-
+  const lista = $('#lista');
   const vazio = $('#vazio');
+  vazio.hidden = true;
+
+  if (buscando) return desenharBusca(minha);
+
+  if (estado.filtro === 'highlights') {
+    return desenharVistaHighlights(lista, $('#contagem'), { cores: estado.cores, tag: estado.tag }, (cores) => {
+      estado.cores = cores;
+      desenharLista();
+    });
+  }
+
+  const filtro = FILTROS.find((f) => f.id === estado.filtro);
+  const itens = todos
+    .filter(filtro.teste)
+    .filter((a) => !estado.tag || (a.tags || []).includes(estado.tag))
+    .sort((x, y) => (y.savedAt || '').localeCompare(x.savedAt || ''));
+
+  $('#contagem').textContent = `${plural(itens.length, 'artigo', 'artigos')} · ${filtro.nome}`;
+  lista.replaceChildren(...itens.map((a) => itemDaLista(a)));
+
   vazio.hidden = itens.length > 0;
   if (!itens.length) {
     vazio.textContent = !todos.length
       ? 'Nenhum artigo salvo ainda. Use "+ Salvar" para ver como adicionar.'
-      : estado.busca
-        ? 'Nada encontrado para essa busca.'
-        : estado.filtro === 'arquivados'
-          ? 'Nenhum artigo arquivado.'
-          : estado.filtro === 'favoritos'
-            ? 'Nenhum favorito ainda. Use ☆ para marcar.'
+      : estado.filtro === 'arquivados'
+        ? 'Nenhum artigo arquivado.'
+        : estado.filtro === 'favoritos'
+          ? 'Nenhum favorito ainda. Use ☆ para marcar.'
+          : estado.tag
+            ? 'Nenhum artigo com essa tag aqui.'
             : 'Tudo lido. 🎉';
   }
 }
@@ -239,11 +162,67 @@ function escolherTag(t) {
   desenharLista();
 }
 
-function itemDaLista(a) {
+// ---------------------------------------------------------------- busca
+
+async function desenharBusca(minha) {
+  const consulta = estado.busca.trim();
+  const lista = $('#lista');
+  const r = await busca.buscar(consulta);
+  if (minha !== geracao) return;
+
+  const q = encodeURIComponent(consulta);
+  const secao = (titulo, n) => el('li', { class: 'secao-busca' }, el('h2', { class: 'titulo-secao', text: `${titulo} · ${n}` }));
+  const partes = [];
+
+  if (r.artigos.length) {
+    partes.push(secao('Artigos', r.artigos.length));
+    r.artigos.forEach(({ entrada }, i) => partes.push(itemDaLista(entrada, { consulta: q, trecho: i < 20 ? consulta : null })));
+  }
+  if (r.highlights.length) {
+    partes.push(secao('Highlights', r.highlights.length));
+    for (const { entrada, h } of r.highlights) {
+      const exact = h.target.selector.find((s) => s.type === 'TextQuoteSelector')?.exact || '';
+      partes.push(
+        el(
+          'li',
+          { class: `citacao citacao-busca hl-borda-${h.color}` },
+          el('a', { class: 'citacao-texto', href: `#/ler/${entrada.id}?hl=${h.id}` }, exact),
+          h.note?.trim() ? el('p', { class: 'citacao-nota', text: h.note }) : null,
+          el('p', { class: 'citacao-origem', text: `${entrada.title} · ${entrada.siteName || ''}` }),
+        ),
+      );
+    }
+  }
+  if (r.notas.length) {
+    partes.push(secao('Notas', r.notas.length));
+    for (const { entrada, nota } of r.notas) {
+      partes.push(el('li', { class: 'nota-busca' }, el('a', { href: `#/ler/${entrada.id}`, class: 'citacao-texto' }, nota), el('p', { class: 'citacao-origem', text: `${entrada.title} · ${entrada.siteName || ''}` })));
+    }
+  }
+
+  const total = r.artigos.length + r.highlights.length + r.notas.length;
+  $('#contagem').textContent = `${plural(total, 'resultado', 'resultados')} para “${consulta}”`;
+  lista.replaceChildren(...partes);
+  const vazio = $('#vazio');
+  vazio.hidden = total > 0;
+  vazio.textContent = r.semIndice ? 'Nada encontrado. O índice de busca ainda não existe: rode "npm run indexar" no terminal.' : 'Nada encontrado no texto, nos highlights nem nas notas.';
+}
+
+// ---------------------------------------------------------------- item
+
+function itemDaLista(a, { consulta = null, trecho = null } = {}) {
   const lido = !!a.readAt;
+  const link = `#/ler/${a.id}${consulta ? `?q=${consulta}` : ''}`;
   const thumb = a.leadImage ? el('img', { class: 'item-thumb', src: dados.urlMidia(a.leadImage), alt: '', loading: 'lazy', decoding: 'async' }) : null;
   const status =
     a.extraction === 'partial' ? el('span', { class: 'selo selo-parcial', title: 'Extração possivelmente incompleta', text: 'parcial' }) : a.extraction === 'failed' ? el('span', { class: 'selo selo-falha', title: 'A extração falhou', text: 'falhou' }) : null;
+  const resumo = el('p', { class: 'item-resumo', text: a.excerpt || '' });
+
+  if (trecho) {
+    busca.trechoDoArtigo(a.id, trecho).then((t) => {
+      if (t) resumo.replaceChildren(t.antes, el('mark', { class: 'termo', text: t.termo }), t.depois);
+    });
+  }
 
   return el(
     'li',
@@ -259,12 +238,15 @@ function itemDaLista(a) {
         a.publishedAt || a.savedAt ? el('span', { class: 'item-sep', text: dataCurta(a.publishedAt || a.savedAt) }) : null,
         a.readingMinutes ? el('span', { class: 'item-sep', text: `${a.readingMinutes} min` }) : null,
         status,
+        consulta && a.archivedAt ? el('span', { class: 'selo selo-neutro', text: 'arquivado' }) : null,
       ),
-      el('h3', { class: 'item-titulo' }, el('a', { href: `#/ler/${a.id}` }, a.title || a.url)),
-      a.excerpt ? el('p', { class: 'item-resumo', text: a.excerpt }) : null,
+      el('h3', { class: 'item-titulo' }, el('a', { href: link }, a.title || a.url)),
+      a.excerpt || trecho ? resumo : null,
       el(
         'div',
         { class: 'item-meta' },
+        a.highlightCount ? el('a', { class: 'item-contador', href: `#/ler/${a.id}`, title: 'Highlights', text: plural(a.highlightCount, 'highlight', 'highlights') }) : null,
+        a.hasNote ? el('span', { class: 'item-contador', text: 'nota' }) : null,
         ...(a.tags || []).map((t) => el('button', { type: 'button', class: 'tag', onclick: () => escolherTag(t) }, t)),
         el(
           'div',
@@ -275,12 +257,12 @@ function itemDaLista(a) {
         ),
       ),
     ),
-    thumb ? el('a', { href: `#/ler/${a.id}`, class: 'item-thumb-link', tabindex: '-1', 'aria-hidden': 'true' }, thumb) : null,
+    thumb ? el('a', { href: link, class: 'item-thumb-link', tabindex: '-1', 'aria-hidden': 'true' }, thumb) : null,
   );
 }
 
 function botaoFavorito(a, classe) {
-  const b = el('button', { type: 'button', class: classe + (a.favorite ? ' ativo-estrela' : '') });
+  const b = el('button', { type: 'button', class: classe });
   const desenhar = () => {
     b.replaceChildren(svg(ICONES.estrela, { tamanho: classe === 'acao' ? 15 : 17, preenchido: a.favorite }));
     b.classList.toggle('ativo-estrela', !!a.favorite);
@@ -315,9 +297,10 @@ function botaoArquivar(a, classe) {
   return b;
 }
 
+const buscarDepois = debounce(() => desenharLista(), 200);
 $('#busca').addEventListener('input', (e) => {
   estado.busca = e.target.value;
-  desenharLista();
+  buscarDepois();
 });
 
 const dialogoSalvar = $('#dialogo-salvar');
@@ -325,6 +308,52 @@ $('#btn-salvar').addEventListener('click', () => dialogoSalvar.showModal());
 dialogoSalvar.querySelector('.js-fechar').addEventListener('click', () => dialogoSalvar.close());
 dialogoSalvar.addEventListener('click', (e) => {
   if (e.target === dialogoSalvar) dialogoSalvar.close();
+});
+
+// ---------------------------------------------------------------- backup
+
+const menu = $('.header-menu');
+document.addEventListener('click', (e) => {
+  if (menu.open && !e.composedPath().includes(menu)) menu.open = false;
+});
+
+$('#btn-exportar').addEventListener('click', async () => {
+  menu.open = false;
+  avisar('Preparando backup…');
+  try {
+    const backup = await dados.exportarBackup();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const a = el('a', { href: URL.createObjectURL(blob), download: `artigos-backup-${new Date().toISOString().slice(0, 10)}.json` });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    avisar(`Backup exportado: ${plural(backup.articles.length, 'artigo', 'artigos')}.`);
+  } catch (e) {
+    avisar(`Não foi possível exportar: ${e.message}`);
+  }
+});
+
+$('#btn-importar').addEventListener('click', () => {
+  menu.open = false;
+  $('#arquivo-importar').click();
+});
+
+$('#arquivo-importar').addEventListener('change', async (e) => {
+  const arquivo = e.target.files[0];
+  e.target.value = '';
+  if (!arquivo) return;
+  try {
+    const b = JSON.parse(await arquivo.text());
+    const n = b.articles?.length ?? 0;
+    if (!confirm(`Importar ${plural(n, 'artigo', 'artigos')} deste backup?\n\nArtigos, notas e highlights com o mesmo identificador serão substituídos pelos do backup. O resto fica como está.`)) return;
+    const r = await dados.importarBackup(b);
+    busca.reiniciar();
+    avisar(`Importado: ${plural(r.artigos, 'artigo', 'artigos')}.`);
+    desenharLista();
+  } catch (err) {
+    avisar(err instanceof SyntaxError ? 'O arquivo não é um JSON válido.' : err.message);
+  }
 });
 
 // ======================================================================
@@ -369,7 +398,6 @@ function aplicarPrefs() {
   l.style.setProperty('--read-size', `${prefs.tamanho}px`);
   l.style.setProperty('--read-leading', (ENTRELINHAS.find((e) => e.id === prefs.entrelinha) || ENTRELINHAS[1]).valor);
   l.style.setProperty('--read-width', (LARGURAS.find((e) => e.id === prefs.largura) || LARGURAS[1]).valor);
-  // a página inteira (atrás da barra) assume o fundo de leitura
   document.body.dataset.fundo = prefs.fundo;
 }
 
@@ -407,37 +435,16 @@ function grupoOpcoes(rotulo, opcoes, atual, chave, extra = () => ({})) {
   );
 }
 
-function iconeLinhas(espaco) {
+function iconeBarras(posicoes) {
   const ns = 'http://www.w3.org/2000/svg';
   const s = document.createElementNS(ns, 'svg');
   s.setAttribute('viewBox', '0 0 24 24');
   s.setAttribute('width', 20);
   s.setAttribute('height', 20);
   s.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < 3; i++) {
+  for (const [x, y, w] of posicoes) {
     const r = document.createElementNS(ns, 'rect');
-    const y = 12 - espaco + i * espaco - 1;
-    r.setAttribute('x', 4);
-    r.setAttribute('y', y);
-    r.setAttribute('width', 16);
-    r.setAttribute('height', 2);
-    r.setAttribute('rx', 1);
-    r.setAttribute('fill', 'currentColor');
-    s.append(r);
-  }
-  return s;
-}
-
-function iconeLargura(w) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const s = document.createElementNS(ns, 'svg');
-  s.setAttribute('viewBox', '0 0 24 24');
-  s.setAttribute('width', 20);
-  s.setAttribute('height', 20);
-  s.setAttribute('aria-hidden', 'true');
-  for (const y of [7, 11, 15]) {
-    const r = document.createElementNS(ns, 'rect');
-    r.setAttribute('x', 12 - w / 2);
+    r.setAttribute('x', x);
     r.setAttribute('y', y);
     r.setAttribute('width', w);
     r.setAttribute('height', 2);
@@ -447,6 +454,8 @@ function iconeLargura(w) {
   }
   return s;
 }
+const iconeLinhas = (esp) => iconeBarras([0, 1, 2].map((i) => [4, 11 - esp + i * esp, 16]));
+const iconeLargura = (w) => iconeBarras([7, 11, 15].map((y) => [12 - w / 2, y, w]));
 
 function desenharPainelPrefs() {
   const painel = $('#painel-prefs');
@@ -470,26 +479,32 @@ function desenharPainelPrefs() {
       class: 'pref-op pref-fundo' + (o.id === prefs.fundo ? ' ativa' : ''),
       'aria-label': o.nome,
     })),
-    el('button', { type: 'button', class: 'pref-restaurar', onclick: () => {
-      prefs = { ...PREFS_PADRAO };
-      armazenamento.gravar('artigos:leitura', prefs);
-      aplicarPrefs();
-      desenharPainelPrefs();
-    } }, 'Restaurar padrão'),
+    el('button', {
+      type: 'button',
+      class: 'pref-restaurar',
+      onclick: () => {
+        prefs = { ...PREFS_PADRAO };
+        armazenamento.gravar('artigos:leitura', prefs);
+        aplicarPrefs();
+        desenharPainelPrefs();
+      },
+    }, 'Restaurar padrão'),
   );
 }
 
 const btnPrefs = $('#btn-prefs');
+const painelPrefs = $('#painel-prefs');
 function abrirPrefs(abrir) {
-  const painel = $('#painel-prefs');
-  painel.hidden = !abrir;
+  painelPrefs.hidden = !abrir;
   btnPrefs.setAttribute('aria-expanded', abrir ? 'true' : 'false');
   btnPrefs.classList.toggle('ativo', abrir);
   if (abrir) desenharPainelPrefs();
 }
-btnPrefs.addEventListener('click', () => abrirPrefs($('#painel-prefs').hidden));
+btnPrefs.addEventListener('click', () => abrirPrefs(painelPrefs.hidden));
 document.addEventListener('click', (e) => {
-  if (!$('#painel-prefs').hidden && !e.target.closest('#painel-prefs, #btn-prefs')) abrirPrefs(false);
+  // composedPath: o botão clicado já pode ter sido trocado ao redesenhar o painel
+  const caminho = e.composedPath();
+  if (!painelPrefs.hidden && !caminho.includes(painelPrefs) && !caminho.includes(btnPrefs)) abrirPrefs(false);
 });
 
 // ======================================================================
@@ -498,16 +513,24 @@ document.addEventListener('click', (e) => {
 
 let artigoAberto = null;
 
-async function abrirArtigo(id) {
+async function abrirArtigo(id, { consulta = null, hl = null } = {}) {
   const a = dados.entrada(id);
   if (!a) {
     avisar('Artigo não encontrado.');
     location.hash = '#/';
     return;
   }
+  const mesmoArtigo = artigoAberto === a && $('#artigo .artigo-corpo');
   artigoAberto = a;
   mostrar('leitura');
   aplicarPrefs();
+
+  // mesmo artigo, só mudou o destino (ex.: clicar em outro highlight)
+  if (mesmoArtigo) {
+    if (hl) anotacoes.irPara(hl);
+    return;
+  }
+
   document.title = `${a.title || 'Artigo'} · Artigos`;
   $('#barra-titulo').textContent = [a.siteName, a.readingMinutes ? `${a.readingMinutes} min` : null].filter(Boolean).join(' · ');
   $('#btn-favorito').replaceWith(Object.assign(botaoFavorito(a, 'icon-btn'), { id: 'btn-favorito' }));
@@ -516,6 +539,7 @@ async function abrirArtigo(id) {
 
   const artigo = $('#artigo');
   artigo.replaceChildren(el('p', { class: 'carregando', text: 'carregando…' }));
+  anotacoes.desmontar();
   window.scrollTo(0, 0);
 
   let completo;
@@ -561,17 +585,34 @@ async function abrirArtigo(id) {
     'footer',
     { class: 'artigo-rodape' },
     el('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer', class: 'artigo-original', text: 'Ler no site original ↗' }),
-    el('div', { class: 'artigo-rodape-acoes' }, a.archivedAt ? el('a', { href: '#/', class: 'btn-secundario', text: '← Voltar à lista' }) : el('button', { type: 'button', class: 'btn-primario', onclick: () => {
-      dados.atualizar(a.id, { archivedAt: new Date().toISOString(), readAt: a.readAt || new Date().toISOString() });
-      avisar('Arquivado.');
-      location.hash = '#/';
-    } }, 'Arquivar e voltar')),
+    el(
+      'div',
+      { class: 'artigo-rodape-acoes' },
+      a.archivedAt
+        ? el('a', { href: '#/', class: 'btn-secundario', text: '← Voltar à lista' })
+        : el('button', {
+            type: 'button',
+            class: 'btn-primario',
+            onclick: () => {
+              dados.atualizar(a.id, { archivedAt: new Date().toISOString(), readAt: a.readAt || new Date().toISOString() });
+              avisar('Arquivado.');
+              location.hash = '#/';
+            },
+          }, 'Arquivar e voltar'),
+    ),
   );
 
   artigo.replaceChildren(cabecalho, caixaAvisos, lead, corpo, rodape);
+  await anotacoes.montar(a, corpo);
+  if (artigoAberto !== a) return;
 
-  // volta para onde parou
-  if (a.progress > 0.02 && a.progress < 0.95) {
+  // destino: highlight > termo da busca > onde parou
+  if (hl && anotacoes.irPara(hl)) {
+    /* rolou até o highlight */
+  } else if (consulta) {
+    const primeira = anotacoes.marcarTermos(termosDaConsulta(consulta));
+    primeira?.scrollIntoView({ block: 'center' });
+  } else if (a.progress > 0.02 && a.progress < 0.95) {
     requestAnimationFrame(() => window.scrollTo(0, a.progress * (document.documentElement.scrollHeight - innerHeight)));
   }
   atualizarProgresso();
@@ -589,7 +630,7 @@ function atualizarProgresso() {
 
   const barra = $('#barra-leitura');
   const descendo = scrollY > ultimoY && scrollY > 80;
-  if ($('#painel-prefs').hidden) barra.classList.toggle('escondida', descendo);
+  if (painelPrefs.hidden) barra.classList.toggle('escondida', descendo);
   ultimoY = scrollY;
 
   const a = artigoAberto;
@@ -604,7 +645,7 @@ function atualizarProgresso() {
 addEventListener('scroll', atualizarProgresso, { passive: true });
 
 // ======================================================================
-// navegação
+// navegação: #/  ·  #/ler/<id>  ·  #/ler/<id>?q=termo  ·  #/ler/<id>?hl=<id>
 // ======================================================================
 
 function mostrar(vista) {
@@ -613,37 +654,43 @@ function mostrar(vista) {
   if (vista === 'lista') {
     delete document.body.dataset.fundo;
     abrirPrefs(false);
+    anotacoes.desmontar();
   }
 }
 
 let posicaoLista = 0;
 
 function rotear() {
-  const m = location.hash.match(/^#\/ler\/([\w-]+)/);
+  const m = location.hash.match(/^#\/ler\/([\w-]+)(?:\?(.*))?$/);
   if (m) {
     if ($('#vista-leitura').hidden) posicaoLista = scrollY;
-    abrirArtigo(m[1]);
+    const params = new URLSearchParams(m[2] || '');
+    abrirArtigo(m[1], { consulta: params.get('q'), hl: params.get('hl') });
   } else {
     const vindoDaLeitura = !$('#vista-leitura').hidden;
     artigoAberto = null;
     document.title = 'Artigos';
     mostrar('lista');
-    desenharLista();
-    if (vindoDaLeitura) requestAnimationFrame(() => window.scrollTo(0, posicaoLista));
+    desenharLista().then(() => {
+      if (vindoDaLeitura) requestAnimationFrame(() => window.scrollTo(0, posicaoLista));
+    });
   }
 }
 
 addEventListener('hashchange', rotear);
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
-  if (!$('#painel-prefs').hidden) abrirPrefs(false);
-  else if (!$('#vista-leitura').hidden) location.hash = '#/';
+  if (!painelPrefs.hidden) abrirPrefs(false);
+  else if (!$('#vista-leitura').hidden && !e.target.closest?.('textarea, input')) location.hash = '#/';
 });
 addEventListener('keydown', (e) => {
-  if (e.key === '/' && !$('#vista-lista').hidden && document.activeElement?.tagName !== 'INPUT') {
+  if (e.key === '/' && !$('#vista-lista').hidden && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
     e.preventDefault();
     $('#busca').focus();
   }
+});
+addEventListener('beforeunload', (e) => {
+  if (dados.temPendencias()) e.preventDefault();
 });
 
 // ======================================================================
