@@ -85,7 +85,7 @@ function itemCitacao(entrada, h) {
     { class: `citacao hl-borda-${h.color}` },
     el('a', { class: 'citacao-texto', href: `#/ler/${entrada.id}?hl=${h.id}`, title: 'Abrir no artigo' }, citacao(h)),
     h.note?.trim() ? el('p', { class: 'citacao-nota', text: h.note }) : null,
-    jaEnviado(h) ? el('p', { class: 'citacao-enviado', title: rotuloEnviado(h), text: 'no meus-bookmarks ✓' }) : null,
+    jaEnviado(h) ? el('p', { class: 'citacao-enviado', title: rotuloEnviado(h), text: 'no Bookmarks ✓' }) : null,
     el(
       'div',
       { class: 'citacao-acoes' },
@@ -94,7 +94,7 @@ function itemCitacao(entrada, h) {
         : el('button', {
             type: 'button',
             class: 'acao acao-texto',
-            title: 'Enviar ao meus-bookmarks como Quote',
+            title: 'Enviar ao Bookmarks como Quote',
             onclick: async (e) => {
               e.currentTarget.disabled = true;
               if (await exportarHighlight(entrada, h)) li.replaceWith(itemCitacao(entrada, h));

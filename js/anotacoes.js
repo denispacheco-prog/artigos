@@ -222,7 +222,7 @@ function abrirPopover(h, ancoraEl, { focarNota = false } = {}) {
         : el('button', {
             type: 'button',
             class: 'pop-btn',
-            title: 'Enviar ao meus-bookmarks como Quote',
+            title: 'Enviar ao Bookmarks como Quote',
             onclick: async (e) => {
               const b = e.currentTarget;
               b.disabled = true;

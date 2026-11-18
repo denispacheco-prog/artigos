@@ -37,9 +37,9 @@ function deBase64(b64) {
 }
 
 function erroHttp(status) {
-  if (status === 401) return new Error('O token do meus-bookmarks neste navegador é inválido ou expirou. Atualize-o no meus-bookmarks (menu ⋯ → Token do GitHub).');
-  if (status === 403 || status === 404) return new Error('O token do meus-bookmarks não tem permissão para gravar lá.');
-  return new Error(`O GitHub respondeu ${status} ao gravar no meus-bookmarks.`);
+  if (status === 401) return new Error('O token do Bookmarks neste navegador é inválido ou expirou. Atualize-o no Bookmarks (menu ⋯ → Token do GitHub).');
+  if (status === 403 || status === 404) return new Error('O token do Bookmarks não tem permissão para gravar lá.');
+  return new Error(`O GitHub respondeu ${status} ao gravar no Bookmarks.`);
 }
 
 async function lerArquivo() {
@@ -67,7 +67,7 @@ export function descricaoDoQuote(trecho, nota) {
  * `artigo` = entrada do índice do artigos (title, url, tags).
  */
 export async function enviarQuote({ trecho, nota, artigo }) {
-  if (!configurado()) throw new Error('Este navegador ainda não tem o token do meus-bookmarks. Abra o meus-bookmarks, configure o token (menu ⋯ → Token do GitHub) e tente de novo.');
+  if (!configurado()) throw new Error('Este navegador ainda não tem o token do Bookmarks. Abra o Bookmarks, configure o token (menu ⋯ → Token do GitHub) e tente de novo.');
   const bookmark = {
     id: crypto.randomUUID(),
     url: artigo.url,
