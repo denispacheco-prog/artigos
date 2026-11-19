@@ -127,7 +127,7 @@ function gravarIndice(atraso) {
 /** Junta o index remoto no nosso: o que mudamos aqui vence, o resto vem de lá. */
 function mesclarIndice(remoto) {
   for (const r of remoto.articles || []) {
-    const l = entrada(r.id);
+    const l = qualquer(r.id);
     if (!l) {
       indice.articles.push(r);
       continue;
@@ -162,7 +162,8 @@ async function sincronizar(arv) {
   for (const [caminho, sha] of arv) {
     const m = caminho.match(/^articles\/(.+)\.json$/);
     if (!m || !ID_VALIDO.test(m[1])) continue;
-    const e = entrada(m[1]);
+    const e = qualquer(m[1]);
+    if (e?.deletedAt) continue;
     if (!e || e.extraction === 'pending' || (e.articleSha && e.articleSha !== sha)) faltando.push(m[1]);
     else if (!e.articleSha) {
       e.articleSha = sha;
@@ -179,19 +180,26 @@ async function sincronizar(arv) {
 async function absorverArtigo(id, artigo = null) {
   const a = artigo || (await ler(`articles/${id}.json`));
   artigosCache.set(id, a);
-  const existente = entrada(id);
+  const existente = qualquer(id);
   const nova = { ...entradaDoArtigo(a, existente), articleSha: shas.get(`articles/${id}.json`) || null };
   if (existente) Object.assign(existente, nova);
   else indice.articles.unshift(nova);
   marcar(id, Object.keys(nova));
 }
 
+// Artigo apagado continua no índice com `deletedAt` (como uma lápide): assim
+// outro aparelho com o índice antigo aberto não o traz de volta ao gravar.
+// Para o resto do app ele não existe; só as funções internas o enxergam.
+const todosDoIndice = () => (indice ? indice.articles : []);
+const qualquer = (id) => todosDoIndice().find((a) => a.id === id) || null;
+
 export function artigosDoIndice() {
-  return indice ? indice.articles : [];
+  return todosDoIndice().filter((a) => !a.deletedAt);
 }
 
 export function entrada(id) {
-  return artigosDoIndice().find((a) => a.id === id) || null;
+  const e = qualquer(id);
+  return e && !e.deletedAt ? e : null;
 }
 
 export function todasAsTags() {
@@ -206,9 +214,33 @@ export function todasAsCategorias() {
   return n;
 }
 
+/**
+ * Apaga um artigo: some do app na hora (lápide `deletedAt` no índice) e o
+ * texto e as imagens saem do repositório num commit só. As anotações ficam
+ * guardadas: se a mesma URL for salva de novo, os highlights voltam. O
+ * histórico do git ainda guarda tudo, para um eventual resgate.
+ */
+export async function apagar(id) {
+  const e = qualquer(id);
+  if (!e || e.deletedAt) return;
+  atualizar(id, { deletedAt: new Date().toISOString() });
+  artigosCache.delete(id);
+  indiceBusca = null;
+  versaoAnotacoes++;
+  notificar('artigos');
+  if (LOCAL) return;
+  try {
+    const apagados = await gh.apagarArquivos((c) => c === `articles/${id}.json` || c.startsWith(`media/${id}/`), `artigos: apaga ${id}`);
+    for (const c of apagados) shas.delete(c);
+  } catch (err) {
+    // o artigo já sumiu do app; só os arquivos ficaram no repositório
+    ouvinteErro(new Error(`O artigo saiu da lista, mas não consegui apagar o texto e as imagens no GitHub: ${err.message}`));
+  }
+}
+
 /** Muda campos de estado de um artigo (favorite, archivedAt, readAt, progress, tags, categories…). */
 export function atualizar(id, mudancas) {
-  const a = entrada(id);
+  const a = qualquer(id);
   if (!a) return;
   Object.assign(a, mudancas, { updatedAt: new Date().toISOString() });
   marcar(id, [...Object.keys(mudancas), 'updatedAt']);
@@ -230,9 +262,16 @@ async function novoId(url) {
 export async function salvarUrl(bruta) {
   const url = normalizarUrl(bruta);
   if (!/^https?:\/\/[^/]+\.[^/]+/i.test(url)) throw new Error('Isso não parece um endereço de página (https://…).');
-  const existente = artigosDoIndice().find((a) => a.url === url);
-  if (existente) return { entrada: existente, jaExistia: true };
+  const existente = todosDoIndice().find((a) => a.url === url);
+  if (existente && !existente.deletedAt) return { entrada: existente, jaExistia: true };
   if (LOCAL) throw new Error('No modo local, salve pelo terminal: npm run extrair -- "URL"');
+  if (existente) {
+    // salvo de novo depois de apagado: volta com tags e anotações, texto extraído outra vez
+    atualizar(existente.id, { deletedAt: null, archivedAt: null, readAt: null, progress: 0, extraction: 'pending', extractionError: null, savedAt: new Date().toISOString() });
+    gravarIndice(0);
+    await disparar(existente);
+    return { entrada: existente, jaExistia: false };
+  }
 
   const id = await novoId(url);
   const e = entradaPendente(id, url);
@@ -326,7 +365,7 @@ export async function aguardarGravacoes() {
  * Devolve a entrada do índice.
  */
 export async function salvarArtigoPronto(artigo, { motivo = artigo.extraction?.method || 'app' } = {}) {
-  const existente = artigosDoIndice().find((a) => a.url === artigo.url || a.id === artigo.id);
+  const existente = todosDoIndice().find((a) => a.url === artigo.url || a.id === artigo.id);
   const id = existente?.id || (await novoId(artigo.url));
   const final = { ...artigo, id, savedAt: existente?.savedAt || artigo.savedAt || new Date().toISOString() };
   const caminho = `articles/${id}.json`;
@@ -338,6 +377,7 @@ export async function salvarArtigoPronto(artigo, { motivo = artigo.extraction?.m
   await gravarComMescla(caminho, () => final, () => {}, `artigos: ${existente ? 'substitui' : 'salva'} ${id} (${motivo})`);
   artigosCache.set(id, Promise.resolve(final));
   await absorverArtigo(id, final);
+  if (existente?.deletedAt) atualizar(id, { deletedAt: null, archivedAt: null, readAt: null, progress: 0 });
   gravarIndice(0);
   await aguardarGravacoes();
 
@@ -450,7 +490,7 @@ let versaoAnotacoes = 0;
 export const versaoDasAnotacoes = () => versaoAnotacoes;
 
 function arquivoDe(id) {
-  const e = entrada(id);
+  const e = qualquer(id);
   return e?.annotationsFile || `annotations/${(e?.savedAt || new Date().toISOString()).slice(0, 7)}.json`;
 }
 
@@ -587,7 +627,7 @@ export async function importarBackup(b, aoProgredir = () => {}) {
   }
   for (const a of b.index.articles) {
     if (!ID_VALIDO.test(a.id)) continue;
-    const e = entrada(a.id);
+    const e = qualquer(a.id);
     if (e) Object.assign(e, a);
     else indice.articles.push(a);
     marcar(a.id, Object.keys(a));

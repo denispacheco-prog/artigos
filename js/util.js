@@ -8,6 +8,8 @@ export function el(tag, props = {}, ...filhos) {
     if (v == null || v === false) continue;
     if (k === 'class') e.className = v;
     else if (k === 'text') e.textContent = v;
+    // variáveis CSS pelo CSSOM (a CSP não deixa usar o atributo style)
+    else if (k === 'vars') for (const [nome, valor] of Object.entries(v)) e.style.setProperty(nome, valor);
     else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
     else e.setAttribute(k, v === true ? '' : v);
   }

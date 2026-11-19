@@ -3,7 +3,7 @@
 import * as dados from './dados.js';
 import { $, el, svg, ICONES, CORES, armazenamento, debounce, copiar, plural, avisar } from './util.js';
 import { exportarHighlight, jaEnviado, rotuloEnviado } from './exportar-quote.js';
-import { classificacaoCompartilhada } from './meus-bookmarks.js';
+import { classificacaoCompartilhada, corDaCategoria } from './meus-bookmarks.js';
 import { textoCorrido, posicoesDoRange, aparar, criarSeletores, ancorar, pintar, despintar, acharTermos } from '../lib/ancora.js';
 
 let ctx = null; // { entrada, corpo, anot, texto, orfaos }
@@ -390,9 +390,11 @@ function editorDeCategorias(entrada) {
     dados.atualizar(entrada.id, { categories: novas });
     desenhar();
   };
+  const matiz = (cor) => (cor ? { '--cat-hue': cor } : null);
   const pilula = (c) =>
-    el('button', { type: 'button', class: 'categoria-pilula' + (atuais().includes(c) ? ' ativa' : ''), 'aria-pressed': atuais().includes(c) ? 'true' : 'false', onclick: () => alternar(c) }, c);
-  const linha = (rotulo, cats) => el('div', { class: 'categorias-grupo' }, el('span', { class: 'categorias-rotulo', text: rotulo }), el('div', { class: 'categorias-pilulas' }, ...cats.map(pilula)));
+    el('button', { type: 'button', class: 'categoria-pilula' + (atuais().includes(c) ? ' ativa' : ''), 'aria-pressed': atuais().includes(c) ? 'true' : 'false', vars: matiz(corDaCategoria(c)), onclick: () => alternar(c) }, c);
+  const linha = (rotulo, cats, cor) =>
+    el('div', { class: 'categorias-grupo', vars: matiz(cor) }, el('span', { class: 'categorias-rotulo', text: rotulo }), el('div', { class: 'categorias-pilulas' }, ...cats.map(pilula)));
 
   function desenhar() {
     const { grupos } = classificacaoCompartilhada();
@@ -400,7 +402,7 @@ function editorDeCategorias(entrada) {
     const outras = atuais().filter((c) => !conhecidas.has(c));
     const ordem = (lista) => [...lista].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     caixa.replaceChildren(
-      ...grupos.map((g) => linha(g.label, ordem(g.categories))),
+      ...grupos.map((g) => linha(g.label, ordem(g.categories), g.cor)),
       outras.length ? linha('Outras', ordem(outras)) : null,
       grupos.length ? null : el('p', { class: 'nota-vazia', text: 'Não consegui carregar as categorias do Bookmarks agora. Tente reabrir o painel.' }),
     );

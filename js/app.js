@@ -9,7 +9,7 @@ import * as dados from './dados.js';
 import * as github from './github.js';
 import * as anotacoes from './anotacoes.js';
 import * as busca from './busca.js';
-import { carregarClassificacao } from './meus-bookmarks.js';
+import { carregarClassificacao, corDaCategoria } from './meus-bookmarks.js';
 import { desenharVistaHighlights } from './vista-highlights.js';
 import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural, copiar, textoDeHtml } from './util.js';
 
@@ -131,7 +131,7 @@ async function desenharLista() {
     nuvemCats.replaceChildren(
       ...[...contagemCats.entries()]
         .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
-        .map(([c, n]) => el('button', { type: 'button', class: 'categoria' + (c === estado.categoria ? ' ativa' : ''), title: plural(n, 'artigo', 'artigos'), onclick: () => escolherCategoria(c === estado.categoria ? null : c) }, c)),
+        .map(([c, n]) => el('button', { type: 'button', class: 'categoria' + (c === estado.categoria ? ' ativa' : ''), title: plural(n, 'artigo', 'artigos'), vars: matiz(c), onclick: () => escolherCategoria(c === estado.categoria ? null : c) }, c)),
     );
   }
 
@@ -142,7 +142,7 @@ async function desenharLista() {
     ativos.replaceChildren(
       el('span', { class: 'filtros-ativos-rotulo', text: 'Filtrando por' }),
       estado.categoria
-        ? el('span', { class: 'chip' }, el('span', { class: 'categoria ativa', text: estado.categoria }), el('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remover filtro de categoria', onclick: () => escolherCategoria(null) }, '✕'))
+        ? el('span', { class: 'chip' }, el('span', { class: 'categoria ativa', text: estado.categoria, vars: matiz(estado.categoria) }), el('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remover filtro de categoria', onclick: () => escolherCategoria(null) }, '✕'))
         : null,
       estado.tag
         ? el('span', { class: 'chip' }, el('span', { class: 'tag ativa', text: estado.tag }), el('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remover filtro de tag', onclick: () => escolherTag(null) }, '✕'))
@@ -190,6 +190,12 @@ async function desenharLista() {
 function escolherTag(t) {
   estado.tag = t;
   desenharLista();
+}
+
+/** --cat-hue da categoria (cor do grupo no meus-bookmarks), para o el(). */
+function matiz(c) {
+  const cor = corDaCategoria(c);
+  return cor ? { '--cat-hue': cor } : null;
 }
 
 function escolherCategoria(c) {
@@ -287,13 +293,14 @@ function itemDaLista(a, { consulta = null, trecho = null } = {}) {
         { class: 'item-meta' },
         a.highlightCount ? el('a', { class: 'item-contador', href: `#/ler/${a.id}`, title: 'Highlights', text: plural(a.highlightCount, 'highlight', 'highlights') }) : null,
         a.hasNote ? el('span', { class: 'item-contador', text: 'nota' }) : null,
-        ...(a.categories || []).map((c) => el('button', { type: 'button', class: 'categoria', onclick: () => escolherCategoria(c) }, c)),
+        ...(a.categories || []).map((c) => el('button', { type: 'button', class: 'categoria', vars: matiz(c), onclick: () => escolherCategoria(c) }, c)),
         ...(a.tags || []).map((t) => el('button', { type: 'button', class: 'tag', onclick: () => escolherTag(t) }, t)),
         el(
           'div',
           { class: 'item-acoes' },
           botaoFavorito(a, 'acao'),
           botaoArquivar(a, 'acao'),
+          botaoApagar(a, 'acao'),
           el('a', { class: 'acao', href: a.url, target: '_blank', rel: 'noopener noreferrer', title: 'Abrir o original', 'aria-label': 'Abrir o original' }, svg(ICONES.original, { tamanho: 15 })),
         ),
       ),
@@ -338,6 +345,23 @@ function botaoArquivar(a, classe) {
   return b;
 }
 
+function botaoApagar(a, classe) {
+  const b = el('button', { type: 'button', class: classe + ' acao-apagar', title: 'Apagar', 'aria-label': 'Apagar' });
+  if (classe === 'btn-secundario btn-pequeno') b.textContent = 'Apagar';
+  else b.append(svg(ICONES.lixo, { tamanho: classe === 'acao' ? 15 : 17 }));
+  b.addEventListener('click', async () => {
+    const nome = a.title || a.url;
+    const extra = a.highlightCount || a.hasNote ? '\n\nOs highlights e a nota ficam guardados: voltam se você salvar este link de novo.' : '';
+    if (!confirm(`Apagar "${nome}"?\n\nO texto e as imagens saem do Artigos.${extra}`)) return;
+    const lendo = !$('#vista-leitura').hidden;
+    await dados.apagar(a.id);
+    avisar('Artigo apagado.');
+    if (lendo) location.hash = '#/';
+    else desenharLista();
+  });
+  return b;
+}
+
 /** Item de artigo ainda sem texto: extraindo… ou falhou. */
 function itemProvisorio(a) {
   const pendente = a.extraction === 'pending';
@@ -366,6 +390,7 @@ function itemProvisorio(a) {
             botaoTentarDeNovo(a),
             el('a', { class: 'btn-secundario btn-pequeno', href: a.url, target: '_blank', rel: 'noopener noreferrer', text: 'Abrir o original ↗' }),
             el('button', { type: 'button', class: 'link-btn', onclick: () => $('#btn-bookmarklet-ajuda')?.click(), text: 'Usar o bookmarklet' }),
+            botaoApagar(a, 'btn-secundario btn-pequeno'),
           ),
     ),
   );
@@ -768,6 +793,7 @@ async function abrirArtigo(id, { consulta = null, hl = null, forcar = false } = 
   $('#barra-titulo').textContent = [a.siteName, a.readingMinutes ? `${a.readingMinutes} min` : null].filter(Boolean).join(' · ');
   $('#btn-favorito').replaceWith(Object.assign(botaoFavorito(a, 'icon-btn'), { id: 'btn-favorito' }));
   $('#btn-arquivar').replaceWith(Object.assign(botaoArquivar(a, 'icon-btn'), { id: 'btn-arquivar' }));
+  $('#btn-apagar').replaceWith(Object.assign(botaoApagar(a, 'icon-btn'), { id: 'btn-apagar' }));
   $('#btn-original').href = a.url;
 
   const artigo = $('#artigo');
@@ -1118,5 +1144,8 @@ async function iniciarDados() {
 
 desenharBotoesTema();
 // categorias e tags do meus-bookmarks: em paralelo, sem segurar a abertura
-carregarClassificacao();
+// (redesenha a lista quando chegam, por causa das cores das categorias)
+carregarClassificacao().then(() => {
+  if (!$('#vista-lista').hidden && dados.artigosDoIndice().length) desenharLista();
+});
 await iniciarDados();

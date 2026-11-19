@@ -97,9 +97,9 @@ export async function verificarAcesso() {
   return r;
 }
 
-/** Lista de arquivos do repositório: Map(caminho → sha). Uma chamada só. */
-export async function arvore() {
-  const r = await pedir(`/repos/${DONO}/${REPO}/git/trees/${RAMO}?recursive=1`, { opcional: true });
+/** Lista de arquivos do repositório: Map(caminho → sha). Uma chamada só. `ref` = ramo ou sha de uma árvore. */
+export async function arvore(ref = RAMO) {
+  const r = await pedir(`/repos/${DONO}/${REPO}/git/trees/${ref}?recursive=1`, { opcional: true });
   const mapa = new Map();
   if (!r) return mapa; // repositório vazio
   for (const item of (await r.json()).tree || []) if (item.type === 'blob') mapa.set(item.path, item.sha);
@@ -143,6 +143,29 @@ export async function gravarJson(caminho, dado, sha, mensagem) {
     // 409 = sha velho; 422 = arquivo já existe e não mandamos sha
     if (e.status === 409 || e.status === 422) throw new Conflito(caminho);
     throw e;
+  }
+}
+
+/**
+ * Apaga, num commit só, todos os arquivos que `apagar(caminho)` aprovar.
+ * Devolve os caminhos apagados. Se outro aparelho gravar no meio, refaz.
+ */
+export async function apagarArquivos(apagar, mensagem) {
+  const base = `/repos/${DONO}/${REPO}/git`;
+  for (let tentativa = 1; ; tentativa++) {
+    const ref = await (await pedir(`${base}/ref/heads/${RAMO}`)).json();
+    const pai = await (await pedir(`${base}/commits/${ref.object.sha}`)).json();
+    const caminhos = [...(await arvore(pai.tree.sha)).keys()].filter(apagar);
+    if (!caminhos.length) return [];
+    const arv = await (await pedir(`${base}/trees`, { metodo: 'POST', corpo: { base_tree: pai.tree.sha, tree: caminhos.map((path) => ({ path, mode: '100644', type: 'blob', sha: null })) } })).json();
+    const novo = await (await pedir(`${base}/commits`, { metodo: 'POST', corpo: { message: mensagem, tree: arv.sha, parents: [ref.object.sha] } })).json();
+    try {
+      await pedir(`${base}/refs/heads/${RAMO}`, { metodo: 'PATCH', corpo: { sha: novo.sha, force: false } });
+      return caminhos;
+    } catch (e) {
+      // 422 = o ramo andou (outra gravação entrou antes): refaz sobre o novo
+      if (e.status !== 422 || tentativa >= 4) throw e;
+    }
   }
 }
 

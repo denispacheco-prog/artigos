@@ -102,6 +102,20 @@ export async function enviarQuote({ trecho, nota, artigo }) {
 const GRUPOS_DO_ARTIGOS = ['conteudo', 'editorial'];
 const CHAVE_CLASSIFICACAO = 'artigos:classificacao';
 
+// Cor de cada grupo: mesma regra do docs/app.js do meus-bookmarks
+// (CATEGORY_PALETTE, GROUP_COLOR_ORDER, GROUP_COLOR_OVERRIDES). Se mudar lá,
+// mude aqui também.
+const PALETA = ['#e87ba4', '#0891b2', '#eda100', '#1baf7a', '#4a3aa7', '#74b9ff', '#008300', '#2a78d6', '#eb6834'];
+const ORDEM_DAS_CORES = ['conteudo', 'recurso', 'midia', 'editorial', 'inspiracao', 'quotes'];
+const CORES_FIXAS = { acoes: '#eb6834' };
+
+function corDoGrupo(id, todosOsIds) {
+  if (CORES_FIXAS[id]) return CORES_FIXAS[id];
+  let i = ORDEM_DAS_CORES.indexOf(id);
+  if (i === -1) i = ORDEM_DAS_CORES.length + todosOsIds.filter((x) => !ORDEM_DAS_CORES.includes(x)).indexOf(id);
+  return PALETA[i % PALETA.length];
+}
+
 let classificacao = (() => {
   try {
     return JSON.parse(localStorage.getItem(CHAVE_CLASSIFICACAO)) || null;
@@ -110,9 +124,14 @@ let classificacao = (() => {
   }
 })();
 
-/** { grupos: [{ id, label, categories }], tags: { nome: contagem } } — última versão lida (ou vazia). */
+/** { grupos: [{ id, label, cor, categories }], tags: { nome: contagem } } — última versão lida (ou vazia). */
 export function classificacaoCompartilhada() {
   return classificacao || { grupos: [], tags: {} };
+}
+
+/** Cor da categoria (a do grupo dela no meus-bookmarks), ou null se não estiver na lista. */
+export function corDaCategoria(nome) {
+  return classificacaoCompartilhada().grupos.find((g) => g.categories.includes(nome))?.cor || null;
 }
 
 /** Relê categorias e tags do meus-bookmarks; se falhar, fica com a última cópia guardada. */
@@ -123,9 +142,10 @@ export async function carregarClassificacao() {
     const r = await fetch(`${API}?ref=main`, { headers: cab, cache: 'no-store' });
     if (!r.ok) return classificacaoCompartilhada();
     const dados = await r.json();
+    const ids = (dados.categoryGroups || []).map((g) => g.id);
     const grupos = (dados.categoryGroups || [])
       .filter((g) => GRUPOS_DO_ARTIGOS.includes(g.id))
-      .map((g) => ({ id: g.id, label: g.label, categories: [...(g.categories || [])] }));
+      .map((g) => ({ id: g.id, label: g.label, cor: corDoGrupo(g.id, ids), categories: [...(g.categories || [])] }));
     const tags = {};
     for (const b of dados.bookmarks || []) for (const t of b.tags || []) tags[t] = (tags[t] || 0) + 1;
     classificacao = { grupos, tags };
