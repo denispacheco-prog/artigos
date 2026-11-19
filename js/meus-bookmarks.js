@@ -64,7 +64,7 @@ export function descricaoDoQuote(trecho, nota) {
 
 /**
  * Cria um Quote no meus-bookmarks. Devolve o id do bookmark criado.
- * `artigo` = entrada do índice do artigos (title, url, tags).
+ * `artigo` = entrada do índice do artigos (title, url, tags, categories).
  */
 export async function enviarQuote({ trecho, nota, artigo }) {
   if (!configurado()) throw new Error('Este navegador ainda não tem o token do Bookmarks. Abra o Bookmarks, configure o token (menu ⋯ → Token do GitHub) e tente de novo.');
@@ -74,7 +74,7 @@ export async function enviarQuote({ trecho, nota, artigo }) {
     title: (artigo.title || artigo.url).trim(),
     description: descricaoDoQuote(trecho, nota),
     tags: [...new Set((artigo.tags || []).map((t) => t.trim()).filter(Boolean))],
-    categories: ['Quote'],
+    categories: ['Quote', ...(artigo.categories || []).filter((c) => c !== 'Quote')],
     favorite: false,
     createdAt: new Date().toISOString(),
   };
@@ -90,4 +90,48 @@ export async function enviarQuote({ trecho, nota, artigo }) {
     if (r.ok) return bookmark.id;
     if (r.status !== 409 || tentativa === 3) throw erroHttp(r.status);
   }
+}
+
+// ======================================================================
+// classificação compartilhada: categorias e tags vêm do meus-bookmarks
+// ======================================================================
+
+// O meus-bookmarks é a fonte de verdade da classificação. O artigos só lê
+// os grupos de categorias que fazem sentido para artigos e as tags já usadas
+// lá (para sugerir a mesma grafia). Repo público: lê sem token se preciso.
+const GRUPOS_DO_ARTIGOS = ['conteudo', 'editorial'];
+const CHAVE_CLASSIFICACAO = 'artigos:classificacao';
+
+let classificacao = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(CHAVE_CLASSIFICACAO)) || null;
+  } catch {
+    return null;
+  }
+})();
+
+/** { grupos: [{ id, label, categories }], tags: { nome: contagem } } — última versão lida (ou vazia). */
+export function classificacaoCompartilhada() {
+  return classificacao || { grupos: [], tags: {} };
+}
+
+/** Relê categorias e tags do meus-bookmarks; se falhar, fica com a última cópia guardada. */
+export async function carregarClassificacao() {
+  try {
+    const cab = { Accept: 'application/vnd.github.raw+json', 'X-GitHub-Api-Version': '2022-11-28' };
+    if (token()) cab.Authorization = `Bearer ${token()}`;
+    const r = await fetch(`${API}?ref=main`, { headers: cab, cache: 'no-store' });
+    if (!r.ok) return classificacaoCompartilhada();
+    const dados = await r.json();
+    const grupos = (dados.categoryGroups || [])
+      .filter((g) => GRUPOS_DO_ARTIGOS.includes(g.id))
+      .map((g) => ({ id: g.id, label: g.label, categories: [...(g.categories || [])] }));
+    const tags = {};
+    for (const b of dados.bookmarks || []) for (const t of b.tags || []) tags[t] = (tags[t] || 0) + 1;
+    classificacao = { grupos, tags };
+    try {
+      localStorage.setItem(CHAVE_CLASSIFICACAO, JSON.stringify(classificacao));
+    } catch {}
+  } catch {}
+  return classificacaoCompartilhada();
 }

@@ -200,7 +200,13 @@ export function todasAsTags() {
   return n;
 }
 
-/** Muda campos de estado de um artigo (favorite, archivedAt, readAt, progress, tags…). */
+export function todasAsCategorias() {
+  const n = new Map();
+  for (const a of artigosDoIndice()) for (const c of a.categories || []) n.set(c, (n.get(c) || 0) + 1);
+  return n;
+}
+
+/** Muda campos de estado de um artigo (favorite, archivedAt, readAt, progress, tags, categories…). */
 export function atualizar(id, mudancas) {
   const a = entrada(id);
   if (!a) return;

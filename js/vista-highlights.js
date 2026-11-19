@@ -1,5 +1,5 @@
 // Vista geral de highlights (M3): todos os highlights, por artigo,
-// filtráveis por cor e por tag do artigo.
+// filtráveis por cor e por categoria e tag do artigo.
 
 import * as dados from './dados.js';
 import { el, svg, ICONES, CORES, dataCurta, plural, copiar } from './util.js';
@@ -9,7 +9,7 @@ const citacao = (h) => h.target.selector.find((s) => s.type === 'TextQuoteSelect
 const posicao = (h) => h.target.selector.find((s) => s.type === 'TextPositionSelector')?.start ?? 0;
 
 /**
- * Desenha em `alvo`. `filtros` = { cores: Set, tag: string|null }.
+ * Desenha em `alvo`. `filtros` = { cores: Set, tag: string|null, categoria: string|null }.
  * `aoMudarCores(novoSet)` é chamado quando o usuário clica numa cor.
  */
 export async function desenharVistaHighlights(alvo, contagem, filtros, aoMudarCores) {
@@ -18,6 +18,7 @@ export async function desenharVistaHighlights(alvo, contagem, filtros, aoMudarCo
 
   const grupos = todas
     .filter(({ entrada }) => !filtros.tag || (entrada.tags || []).includes(filtros.tag))
+    .filter(({ entrada }) => !filtros.categoria || (entrada.categories || []).includes(filtros.categoria))
     .map(({ entrada, anotacoes }) => ({
       entrada,
       hls: anotacoes.highlights.filter((h) => !filtros.cores.size || filtros.cores.has(h.color)).sort((a, b) => posicao(a) - posicao(b)),

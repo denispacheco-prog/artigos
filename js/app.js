@@ -9,6 +9,7 @@ import * as dados from './dados.js';
 import * as github from './github.js';
 import * as anotacoes from './anotacoes.js';
 import * as busca from './busca.js';
+import { carregarClassificacao } from './meus-bookmarks.js';
 import { desenharVistaHighlights } from './vista-highlights.js';
 import { $, el, svg, ICONES, dataCurta, dataLonga, armazenamento, avisar, debounce, plural, copiar, textoDeHtml } from './util.js';
 
@@ -66,6 +67,7 @@ const FILTROS = [
 const estado = {
   filtro: armazenamento.ler('artigos:filtro', 'ler'),
   tag: null,
+  categoria: null,
   busca: '',
   cores: new Set(),
 };
@@ -120,13 +122,31 @@ async function desenharLista() {
     );
   }
 
-  // filtro de tag ativo
+  // categorias (as mesmas do meus-bookmarks; aqui só as já usadas)
+  const contagemCats = dados.todasAsCategorias();
+  const nuvemCats = $('#nuvem-categorias');
+  if (!contagemCats.size) {
+    nuvemCats.replaceChildren(el('p', { class: 'nota-vazia', text: 'Nenhuma categoria ainda. Escolha no painel ✎ de um artigo.' }));
+  } else {
+    nuvemCats.replaceChildren(
+      ...[...contagemCats.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
+        .map(([c, n]) => el('button', { type: 'button', class: 'categoria' + (c === estado.categoria ? ' ativa' : ''), title: plural(n, 'artigo', 'artigos'), onclick: () => escolherCategoria(c === estado.categoria ? null : c) }, c)),
+    );
+  }
+
+  // filtros de categoria e tag ativos
   const ativos = $('#filtros-ativos');
-  ativos.hidden = !estado.tag || buscando;
-  if (estado.tag) {
+  ativos.hidden = (!estado.tag && !estado.categoria) || buscando;
+  if (estado.tag || estado.categoria) {
     ativos.replaceChildren(
       el('span', { class: 'filtros-ativos-rotulo', text: 'Filtrando por' }),
-      el('span', { class: 'chip' }, el('span', { class: 'tag ativa', text: estado.tag }), el('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remover filtro', onclick: () => escolherTag(null) }, '✕')),
+      estado.categoria
+        ? el('span', { class: 'chip' }, el('span', { class: 'categoria ativa', text: estado.categoria }), el('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remover filtro de categoria', onclick: () => escolherCategoria(null) }, '✕'))
+        : null,
+      estado.tag
+        ? el('span', { class: 'chip' }, el('span', { class: 'tag ativa', text: estado.tag }), el('button', { type: 'button', class: 'chip-x', 'aria-label': 'Remover filtro de tag', onclick: () => escolherTag(null) }, '✕'))
+        : null,
     );
   }
 
@@ -137,7 +157,7 @@ async function desenharLista() {
   if (buscando) return desenharBusca(minha);
 
   if (estado.filtro === 'highlights') {
-    return desenharVistaHighlights(lista, $('#contagem'), { cores: estado.cores, tag: estado.tag }, (cores) => {
+    return desenharVistaHighlights(lista, $('#contagem'), { cores: estado.cores, tag: estado.tag, categoria: estado.categoria }, (cores) => {
       estado.cores = cores;
       desenharLista();
     });
@@ -147,6 +167,7 @@ async function desenharLista() {
   const itens = todos
     .filter(filtro.teste)
     .filter((a) => !estado.tag || (a.tags || []).includes(estado.tag))
+    .filter((a) => !estado.categoria || (a.categories || []).includes(estado.categoria))
     .sort((x, y) => (y.savedAt || '').localeCompare(x.savedAt || ''));
 
   $('#contagem').textContent = `${plural(itens.length, 'artigo', 'artigos')} · ${filtro.nome}`;
@@ -160,14 +181,19 @@ async function desenharLista() {
         ? 'Nenhum artigo arquivado.'
         : estado.filtro === 'favoritos'
           ? 'Nenhum favorito ainda. Use ☆ para marcar.'
-          : estado.tag
-            ? 'Nenhum artigo com essa tag aqui.'
+          : estado.tag || estado.categoria
+            ? 'Nenhum artigo com esse filtro aqui.'
             : 'Tudo lido. 🎉';
   }
 }
 
 function escolherTag(t) {
   estado.tag = t;
+  desenharLista();
+}
+
+function escolherCategoria(c) {
+  estado.categoria = c;
   desenharLista();
 }
 
@@ -261,6 +287,7 @@ function itemDaLista(a, { consulta = null, trecho = null } = {}) {
         { class: 'item-meta' },
         a.highlightCount ? el('a', { class: 'item-contador', href: `#/ler/${a.id}`, title: 'Highlights', text: plural(a.highlightCount, 'highlight', 'highlights') }) : null,
         a.hasNote ? el('span', { class: 'item-contador', text: 'nota' }) : null,
+        ...(a.categories || []).map((c) => el('button', { type: 'button', class: 'categoria', onclick: () => escolherCategoria(c) }, c)),
         ...(a.tags || []).map((t) => el('button', { type: 'button', class: 'tag', onclick: () => escolherTag(t) }, t)),
         el(
           'div',
@@ -1090,4 +1117,6 @@ async function iniciarDados() {
 }
 
 desenharBotoesTema();
+// categorias e tags do meus-bookmarks: em paralelo, sem segurar a abertura
+carregarClassificacao();
 await iniciarDados();

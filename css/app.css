@@ -303,6 +303,30 @@ textarea {
   font-weight: 600;
 }
 
+/* categorias (as do meus-bookmarks): sem "#", em versalete discreto */
+
+.categoria {
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.72rem;
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 150ms var(--ease);
+}
+
+.categoria:hover {
+  color: var(--fg);
+}
+
+.categoria.ativa {
+  color: var(--tag-fg-active);
+  font-weight: 600;
+}
+
 .nota-vazia {
   margin: 0;
   font-size: 0.8rem;
@@ -1605,6 +1629,47 @@ button.painel-hl-texto:hover {
 
 .painel-orfaos .pop-btn {
   margin-top: 0.35rem;
+}
+
+/* categorias no painel */
+
+.categorias-grupo + .categorias-grupo {
+  margin-top: var(--space-2);
+}
+
+.categorias-rotulo {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.categorias-pilulas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.categoria-pilula {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 0.78rem;
+  color: var(--fg);
+  cursor: pointer;
+  transition: border-color 150ms var(--ease), color 150ms var(--ease);
+}
+
+.categoria-pilula:hover {
+  border-color: var(--accent);
+}
+
+.categoria-pilula.ativa {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--tag-fg-active);
+  font-weight: 600;
 }
 
 /* tags */

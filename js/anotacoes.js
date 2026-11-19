@@ -3,6 +3,7 @@
 import * as dados from './dados.js';
 import { $, el, svg, ICONES, CORES, armazenamento, debounce, copiar, plural, avisar } from './util.js';
 import { exportarHighlight, jaEnviado, rotuloEnviado } from './exportar-quote.js';
+import { classificacaoCompartilhada } from './meus-bookmarks.js';
 import { textoCorrido, posicoesDoRange, aparar, criarSeletores, ancorar, pintar, despintar, acharTermos } from '../lib/ancora.js';
 
 let ctx = null; // { entrada, corpo, anot, texto, orfaos }
@@ -299,7 +300,7 @@ addEventListener('keydown', (e) => {
 }, true);
 
 // ======================================================================
-// painel do artigo: nota geral, tags, lista de highlights
+// painel do artigo: nota geral, categorias, tags, lista de highlights
 // ======================================================================
 
 const painel = $('#painel-artigo');
@@ -360,6 +361,7 @@ function desenharPainel() {
       el('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Fechar painel', onclick: () => alternarPainel(false) }, svg(ICONES.fechar, { tamanho: 16 })),
     ),
     el('section', { class: 'painel-secao' }, el('h3', { class: 'titulo-secao' }, 'Nota ', status), nota),
+    el('section', { class: 'painel-secao' }, el('h3', { class: 'titulo-secao', text: 'Categorias' }), editorDeCategorias(entrada)),
     el('section', { class: 'painel-secao' }, el('h3', { class: 'titulo-secao', text: 'Tags' }), editorDeTags(entrada)),
     el(
       'section',
@@ -373,7 +375,60 @@ function desenharPainel() {
   );
 }
 
+// ---------------------------------------------------------------- categorias
+
+/**
+ * Categorias: as mesmas do meus-bookmarks (grupos Conteúdo e Editorial), que é
+ * onde a lista é mantida. Uma categoria que saiu de lá continua no artigo e
+ * aparece em "Outras" até ser desmarcada.
+ */
+function editorDeCategorias(entrada) {
+  const caixa = el('div', { class: 'categorias-editor' });
+  const atuais = () => entrada.categories || [];
+  const alternar = (c) => {
+    const novas = atuais().includes(c) ? atuais().filter((x) => x !== c) : [...atuais(), c];
+    dados.atualizar(entrada.id, { categories: novas });
+    desenhar();
+  };
+  const pilula = (c) =>
+    el('button', { type: 'button', class: 'categoria-pilula' + (atuais().includes(c) ? ' ativa' : ''), 'aria-pressed': atuais().includes(c) ? 'true' : 'false', onclick: () => alternar(c) }, c);
+  const linha = (rotulo, cats) => el('div', { class: 'categorias-grupo' }, el('span', { class: 'categorias-rotulo', text: rotulo }), el('div', { class: 'categorias-pilulas' }, ...cats.map(pilula)));
+
+  function desenhar() {
+    const { grupos } = classificacaoCompartilhada();
+    const conhecidas = new Set(grupos.flatMap((g) => g.categories));
+    const outras = atuais().filter((c) => !conhecidas.has(c));
+    const ordem = (lista) => [...lista].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    caixa.replaceChildren(
+      ...grupos.map((g) => linha(g.label, ordem(g.categories))),
+      outras.length ? linha('Outras', ordem(outras)) : null,
+      grupos.length ? null : el('p', { class: 'nota-vazia', text: 'Não consegui carregar as categorias do Bookmarks agora. Tente reabrir o painel.' }),
+    );
+  }
+
+  desenhar();
+  return caixa;
+}
+
 // ---------------------------------------------------------------- tags
+
+/**
+ * Tags conhecidas: as do artigos e as do meus-bookmarks, para sugerir sempre a
+ * mesma grafia. Nomes iguais ignorando maiúsculas contam como uma só (vale a
+ * grafia do artigos).
+ */
+function tagsConhecidas() {
+  const porChave = new Map();
+  const juntar = (nome, n) => {
+    const k = nome.toLocaleLowerCase('pt-BR');
+    const atual = porChave.get(k);
+    if (atual) atual.n += n;
+    else porChave.set(k, { nome, n });
+  };
+  for (const [t, n] of dados.todasAsTags()) juntar(t, n);
+  for (const [t, n] of Object.entries(classificacaoCompartilhada().tags)) juntar(t, n);
+  return new Map([...porChave.values()].map(({ nome, n }) => [nome, n]));
+}
 
 /** Editor de tags com sugestões (padrão do meus-bookmarks). */
 function editorDeTags(entrada) {
@@ -391,7 +446,7 @@ function editorDeTags(entrada) {
   const adicionar = (bruta) => {
     const t = bruta.replace(/^#/, '').trim().replace(/\s+/g, ' ');
     if (!t) return;
-    const existente = [...dados.todasAsTags().keys()].find((x) => x.toLocaleLowerCase('pt-BR') === t.toLocaleLowerCase('pt-BR'));
+    const existente = [...tagsConhecidas().keys()].find((x) => x.toLocaleLowerCase('pt-BR') === t.toLocaleLowerCase('pt-BR'));
     const final = existente || t;
     if (!tags().some((x) => x.toLocaleLowerCase('pt-BR') === final.toLocaleLowerCase('pt-BR'))) gravar([...tags(), final]);
     entradaTxt.value = '';
@@ -408,7 +463,7 @@ function editorDeTags(entrada) {
 
   function sugerir() {
     const q = entradaTxt.value.trim().toLocaleLowerCase('pt-BR');
-    const opcoes = [...dados.todasAsTags().entries()]
+    const opcoes = [...tagsConhecidas().entries()]
       .filter(([t]) => !tags().includes(t) && (!q || t.toLocaleLowerCase('pt-BR').includes(q)))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 8);
