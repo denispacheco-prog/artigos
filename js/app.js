@@ -68,6 +68,7 @@ const estado = {
   filtro: armazenamento.ler('artigos:filtro', 'ler'),
   tag: null,
   categoria: null,
+  maisFiltros: false, // celular: nuvem de categorias e tags aberta
   busca: '',
   cores: new Set(),
 };
@@ -107,7 +108,24 @@ async function desenharLista() {
         el('span', { class: 'filtro-n', text: String(f.contar ? f.contar(todos) : todos.filter(f.teste).length) }),
       ),
     ),
+    // só aparece no celular (CSS): abre e fecha a nuvem de categorias e tags
+    el(
+      'button',
+      {
+        type: 'button',
+        class: 'filtro mais-filtros' + (estado.maisFiltros ? ' ativo' : ''),
+        'aria-expanded': estado.maisFiltros ? 'true' : 'false',
+        'aria-controls': 'filtros-extra',
+        onclick: () => {
+          estado.maisFiltros = !estado.maisFiltros;
+          desenharLista();
+        },
+      },
+      el('span', { text: 'Categorias e tags' }),
+      el('span', { class: 'filtro-n', 'aria-hidden': 'true', text: estado.maisFiltros ? '▴' : '▾' }),
+    ),
   );
+  $('.lateral').classList.toggle('extra-aberto', estado.maisFiltros);
 
   // tags
   const contagemTags = dados.todasAsTags();
@@ -189,6 +207,7 @@ async function desenharLista() {
 
 function escolherTag(t) {
   estado.tag = t;
+  estado.maisFiltros = false;
   desenharLista();
 }
 
@@ -200,6 +219,7 @@ function matiz(c) {
 
 function escolherCategoria(c) {
   estado.categoria = c;
+  estado.maisFiltros = false;
   desenharLista();
 }
 
@@ -1127,6 +1147,7 @@ async function iniciarDados() {
   try {
     await dados.carregarIndice();
     rotear();
+    baixarParaOfflineDepois();
   } catch (e) {
     const semToken = e instanceof dados.SemToken || e.status === 401;
     $('#contagem').textContent = '';
@@ -1142,6 +1163,43 @@ async function iniciarDados() {
   }
 }
 
+// ======================================================================
+// offline (service worker em sw.js)
+// ======================================================================
+
+function registrarOffline() {
+  if (!('serviceWorker' in navigator)) return;
+  navigator.serviceWorker
+    .register('./sw.js')
+    .then(async () => {
+      const reg = await navigator.serviceWorker.ready;
+      // o que esta página já carregou (CSS, JS, fontes) fica guardado de uma vez
+      const base = new URL('./', location.href).href;
+      const urls = performance
+        .getEntriesByType('resource')
+        .map((e) => e.name.split('#')[0])
+        .filter((u) => u.startsWith(base) && !u.includes('/amostra-dados/') && !u.includes('/dados/'));
+      reg.active?.postMessage({ tipo: 'guardar-site', urls: [...new Set(urls)] });
+    })
+    .catch(() => {});
+}
+
+function marcarConexao() {
+  document.body.classList.toggle('sem-rede', !navigator.onLine);
+}
+addEventListener('online', marcarConexao);
+addEventListener('offline', marcarConexao);
+marcarConexao();
+
+// Só no celular: com internet, baixa o que está em "Para ler" para ler offline.
+const NO_CELULAR = matchMedia('(hover: none) and (pointer: coarse)').matches;
+function baixarParaOfflineDepois() {
+  if (!NO_CELULAR || !navigator.onLine || navigator.connection?.saveData) return;
+  setTimeout(() => dados.baixarParaOffline(), 3000);
+}
+addEventListener('online', baixarParaOfflineDepois);
+
+registrarOffline();
 desenharBotoesTema();
 // categorias e tags do meus-bookmarks: em paralelo, sem segurar a abertura
 // (redesenha a lista quando chegam, por causa das cores das categorias)

@@ -7,6 +7,11 @@
   <meta name="referrer" content="no-referrer" />
   <title>Artigos</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='none' stroke='%2386ade0' stroke-width='7' stroke-linejoin='round' stroke-linecap='round'><path d='M50 26C40 18 26 16 14 18v58c12-2 26 0 36 8 10-8 24-10 36-8V18c-12-2-26 0-36 8z'/><path d='M50 26v58'/></g></svg>" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icones/apple-touch-icon.png" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#151b23" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-title" content="Artigos" />
   <link rel="stylesheet" href="tokens.css" />
   <link rel="stylesheet" href="fonts/fontes.css" />
   <link rel="stylesheet" href="css/app.css" />
@@ -53,14 +58,17 @@
           <h2 class="titulo-secao">Ler</h2>
           <nav id="filtros" class="filtros" aria-label="Filtros"></nav>
         </section>
-        <section>
-          <h2 class="titulo-secao">Categorias</h2>
-          <div id="nuvem-categorias" class="nuvem-tags"></div>
-        </section>
-        <section>
-          <h2 class="titulo-secao">Tags</h2>
-          <div id="nuvem-tags" class="nuvem-tags"></div>
-        </section>
+        <!-- no celular fica recolhido atrás do botão "Categorias e tags" -->
+        <div id="filtros-extra" class="filtros-extra">
+          <section>
+            <h2 class="titulo-secao">Categorias</h2>
+            <div id="nuvem-categorias" class="nuvem-tags"></div>
+          </section>
+          <section>
+            <h2 class="titulo-secao">Tags</h2>
+            <div id="nuvem-tags" class="nuvem-tags"></div>
+          </section>
+        </div>
       </aside>
 
       <div class="conteudo">

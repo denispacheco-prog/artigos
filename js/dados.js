@@ -66,7 +66,12 @@ function agendarGravacao(caminho, { obter, mesclar, mensagem, atraso = 800, aoGr
   );
 }
 
+// Sem internet, as gravações esperam a conexão voltar (o app aberto offline
+// só serve para ler; o progresso de leitura sai quando a rede volta).
+const esperarConexao = () => (navigator.onLine ? Promise.resolve() : new Promise((ok) => addEventListener('online', ok, { once: true })));
+
 async function gravarComMescla(caminho, obter, mesclar, mensagem) {
+  await esperarConexao();
   for (let tentativa = 1; ; tentativa++) {
     try {
       return await gravar(caminho, obter(), mensagem);
@@ -455,11 +460,13 @@ async function vez(fn) {
   }
 }
 
+// cache do navegador: a chave inclui o sha, então imagem trocada é baixada de novo
+const chaveDaMidia = (src) => `https://artigos.cache/${src}?v=${shas.get(src) || '0'}`;
+
 function urlDaMidia(src) {
   if (!midias.has(src)) {
     const p = (async () => {
-      // cache do navegador: a chave inclui o sha, então imagem trocada é baixada de novo
-      const chave = `https://artigos.cache/${src}?v=${shas.get(src) || '0'}`;
+      const chave = chaveDaMidia(src);
       let cache = null;
       try {
         cache = await caches.open('artigos-midia');
@@ -476,6 +483,54 @@ function urlDaMidia(src) {
     p.catch(() => midias.delete(src));
   }
   return midias.get(src);
+}
+
+// ======================================================================
+// offline: baixa texto, imagens e anotações do que está em "Para ler"
+// ======================================================================
+
+/** Guarda uma imagem no cache sem criar URL na memória (para o download offline). */
+async function guardarMidia(src) {
+  if (LOCAL) {
+    await fetch(BASE_LOCAL + src); // o service worker guarda
+    return;
+  }
+  const cache = await caches.open('artigos-midia');
+  const chave = chaveDaMidia(src);
+  if (await cache.match(chave)) return;
+  const blob = await vez(() => gh.lerBlob(src));
+  await cache.put(chave, new Response(blob));
+}
+
+let baixando = false;
+
+/**
+ * Baixa para ler offline todos os artigos de "Para ler": o texto passa pelo
+ * service worker (que guarda a resposta), as imagens vão para o cache de
+ * mídia e as anotações também. Devolve quantos ficaram prontos.
+ */
+export async function baixarParaOffline() {
+  if (baixando || !navigator.onLine) return 0;
+  baixando = true;
+  let prontos = 0;
+  try {
+    const alvo = artigosDoIndice().filter((a) => !a.archivedAt && a.extraction !== 'pending' && a.extraction !== 'failed');
+    for (const a of alvo) {
+      if (!navigator.onLine) break;
+      try {
+        const jaNaMemoria = artigosCache.has(a.id);
+        const art = await carregarArtigo(a.id);
+        if (!jaNaMemoria) artigosCache.delete(a.id); // não segura todos os textos na memória
+        await carregarArquivoAnotacoes(arquivoDe(a.id));
+        const srcs = new Set([art.leadImage?.src, ...(art.images || []).map((i) => i.src)].filter((s) => s && s.startsWith('media/')));
+        for (const s of srcs) await guardarMidia(s).catch(() => {});
+        prontos++;
+      } catch {}
+    }
+  } finally {
+    baixando = false;
+  }
+  return prontos;
 }
 
 // ======================================================================

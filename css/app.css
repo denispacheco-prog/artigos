@@ -256,6 +256,15 @@ textarea {
   color: var(--fg);
 }
 
+/* desktop: o invólucro não existe para o layout e o botão não aparece */
+.filtros-extra {
+  display: contents;
+}
+
+.mais-filtros {
+  display: none;
+}
+
 .filtro.ativo {
   background: var(--accent-soft);
   color: var(--fg);
@@ -606,6 +615,26 @@ textarea {
   }
 }
 
+/* ===== Sem internet ===== */
+
+body.sem-rede::after {
+  content: "offline · lendo a cópia salva";
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px));
+  z-index: 90;
+  transform: translateX(-50%);
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  font-size: 0.75rem;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* ===== Lista: telas menores ===== */
 
 @media (max-width: 980px) {
@@ -649,6 +678,26 @@ textarea {
 
   .nuvem-tags:has(.nota-vazia) {
     display: none;
+  }
+
+  /* celular: categorias e tags recolhidas atrás de um botão, para a lista
+     começar logo abaixo dos filtros */
+  .filtros .mais-filtros {
+    display: flex;
+  }
+
+  .filtros-extra {
+    display: none;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .lateral.extra-aberto .filtros-extra {
+    display: flex;
   }
 
   .conteudo {
