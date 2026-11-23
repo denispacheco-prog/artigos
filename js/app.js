@@ -57,8 +57,14 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', desenharBo
 // estado da lista
 // ======================================================================
 
+// Longos: fila de leitura só com os textos de LONGO_MINUTOS ou mais, pelo
+// tempo de leitura que a extração já calcula. Arquivar tira daqui, como em
+// "Para ler"; favorito ou não, tanto faz.
+const LONGO_MINUTOS = 30;
+
 const FILTROS = [
   { id: 'ler', nome: 'Para ler', teste: (a) => !a.archivedAt },
+  { id: 'longos', nome: 'Longos', teste: (a) => !a.archivedAt && (a.readingMinutes || 0) >= LONGO_MINUTOS },
   { id: 'favoritos', nome: 'Favoritos', teste: (a) => a.favorite },
   { id: 'arquivados', nome: 'Arquivados', teste: (a) => !!a.archivedAt },
   { id: 'highlights', nome: 'Highlights', contar: (todos) => todos.reduce((s, a) => s + (a.highlightCount || 0), 0) },
@@ -199,6 +205,8 @@ async function desenharLista() {
         ? 'Nenhum artigo arquivado.'
         : estado.filtro === 'favoritos'
           ? 'Nenhum favorito ainda. Use ☆ para marcar.'
+          : estado.filtro === 'longos' && !estado.tag && !estado.categoria
+            ? `Nenhum texto de ${LONGO_MINUTOS} min ou mais para ler.`
           : estado.tag || estado.categoria
             ? 'Nenhum artigo com esse filtro aqui.'
             : 'Tudo lido. 🎉';

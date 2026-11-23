@@ -228,7 +228,7 @@ textarea {
   color: var(--muted);
 }
 
-/* filtros (Para ler / Favoritos / Arquivados) */
+/* filtros (Para ler / Longos / Favoritos / Arquivados / Highlights) */
 
 .filtros {
   display: flex;
