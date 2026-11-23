@@ -60,7 +60,7 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', desenharBo
 // Longos: fila de leitura só com os textos de LONGO_MINUTOS ou mais, pelo
 // tempo de leitura que a extração já calcula. Arquivar tira daqui, como em
 // "Para ler"; favorito ou não, tanto faz.
-const LONGO_MINUTOS = 30;
+const LONGO_MINUTOS = 20;
 
 const FILTROS = [
   { id: 'ler', nome: 'Para ler', teste: (a) => !a.archivedAt },
