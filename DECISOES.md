@@ -12,7 +12,8 @@ Aprovadas em 18/11/2026.
 - Leitura (preferências em `artigos:leitura`): fontes Literata, Source Serif
   4, Georgia, Inter, Atkinson Hyperlegible, sistema (arquivos de fonte no
   repo, sem Google Fonts); fundos automático, claro, sépia, cinza, escuro.
-- Highlights: pastel estilo Kindle colorido — amarelo, laranja, azul, rosa.
+- Highlights: pastel estilo Kindle colorido — amarelo, verde-menta, azul, rosa (o verde usa o id
+  `laranja`, que era a cor original, para não migrar os highlights gravados).
   Busca dentro do artigo marca com sublinhado azul, nunca com fundo.
 - Tokens copiados para `tokens.css` (sem fonte única entre os projetos).
 

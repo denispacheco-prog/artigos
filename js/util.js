@@ -53,7 +53,7 @@ export const ICONES = {
 
 export const CORES = [
   { id: 'amarelo', nome: 'Amarelo' },
-  { id: 'laranja', nome: 'Laranja' },
+  { id: 'laranja', nome: 'Verde' }, // id antigo mantido: é o que está gravado nos highlights
   { id: 'azul', nome: 'Azul' },
   { id: 'rosa', nome: 'Rosa' },
 ];
